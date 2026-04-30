@@ -1,36 +1,20 @@
 "use client";
 import { useState } from 'react';
 import Link from 'next/link';
+import { login } from '@/app/actions/auth';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async (formData: FormData) => {
     setLoading(true);
     setError('');
 
-    // Simulate network request
-    await new Promise(resolve => setTimeout(resolve, 800));
+    const result = await login(formData);
 
-    if (email && password) {
-      try {
-        localStorage.setItem('sawa_auth_token', 'mock_jwt_token_12345');
-      } catch {
-        console.warn("Storage access denied in iframe, bypassing");
-      }
-      try {
-        document.cookie = "sawa_auth_token=mock_jwt_token_12345; path=/; max-age=86400; SameSite=Lax";
-      } catch {
-        console.warn("Cookie access denied in iframe, bypassing");
-      }
-      
-      window.location.href = '/dashboard';
-    } else {
-      setError('Please enter your credentials.');
+    if (result?.error) {
+      setError(result.error);
       setLoading(false);
     }
   };
@@ -47,16 +31,15 @@ export default function Login() {
         
         {error && <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-sm mb-6 text-center">{error}</div>}
         
-        <form onSubmit={handleLogin} className="space-y-5">
+        <form action={handleLogin} className="space-y-5">
           <div className="space-y-2">
             <label htmlFor="email" className="block text-sm font-medium text-slate-300">Email Address</label>
             <input 
               id="email"
+              name="email"
               type="email" 
               className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all font-mono" 
               placeholder="admin@sawa.ai"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
@@ -65,11 +48,10 @@ export default function Login() {
             <label htmlFor="password" className="block text-sm font-medium text-slate-300">Password</label>
             <input 
               id="password"
+              name="password"
               type="password" 
               className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all font-mono" 
               placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
               required
             />
           </div>
