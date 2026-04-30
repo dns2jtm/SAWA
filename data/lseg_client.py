@@ -190,24 +190,59 @@ def download_ohlcv(
             return pd.DataFrame()
 
         raw.index  = pd.to_datetime(raw.index, utc=True)
-        # Dynamically map columns as LSEG may return varying names (e.g. BID, ASK, TRDPRC_1, CLOSE)
+        # Dynamically map columns as LSEG may return varying names
         col_map = {}
+        processed_reqs = set()
+        
+        # 1. Exact matches first
         for c in raw.columns:
             cl = str(c).lower()
-            if "open" in cl:
-                col_map[c] = "open"
-            elif "high" in cl:
-                col_map[c] = "high"
-            elif "low" in cl:
-                col_map[c] = "low"
-            elif "close" in cl or "last" in cl or "prc" in cl or "bid" in cl: # Fallback to prc or bid if no close
-                if "close" not in col_map.values(): # Prefer close
+            if cl in ["open", "high", "low", "close", "volume"]:
+                col_map[c] = cl
+                processed_reqs.add(cl)
+                
+        # 2. Fallbacks for missing columns
+        for c in raw.columns:
+            if c in col_map: continue
+            cl = str(c).lower()
+            
+            if "open" in cl and "open" not in processed_reqs:
+                if "prc" in cl or "bid" in cl or "last" in cl or "open" == cl:
+                    col_map[c] = "open"
+                    processed_reqs.add("open")
+            elif "high" in cl and "high" not in processed_reqs:
+                if "prc" in cl or "bid" in cl or "last" in cl or "high" == cl:
+                    col_map[c] = "high"
+                    processed_reqs.add("high")
+            elif "low" in cl and "low" not in processed_reqs:
+                if "prc" in cl or "bid" in cl or "last" in cl or "low" == cl:
+                    col_map[c] = "low"
+                    processed_reqs.add("low")
+            elif ("close" in cl or "last" in cl or "prc" in cl or "bid" in cl) and "close" not in processed_reqs:
+                if "close" in cl or "last" in cl or "prc" in cl:
                     col_map[c] = "close"
-            elif "vol" in cl:
+                    processed_reqs.add("close")
+            elif "vol" in cl and "volume" not in processed_reqs:
                 col_map[c] = "volume"
+                processed_reqs.add("volume")
+
+        # If we still have missing columns but multiple columns contain the keyword
+        # we can just take the first one that contains the keyword
+        for req in ["open", "high", "low", "close", "volume"]:
+            if req not in processed_reqs:
+                for c in raw.columns:
+                    if c in col_map: continue
+                    cl = str(c).lower()
+                    if req in cl or (req == "volume" and "vol" in cl):
+                        col_map[c] = req
+                        processed_reqs.add(req)
+                        break
+
+        raw = raw.rename(columns=col_map)
         
-        raw.rename(columns=col_map, inplace=True)
-        
+        # Handle duplicates if they somehow exist by keeping first
+        raw = raw.loc[:, ~raw.columns.duplicated()]
+
         for req in ["open", "high", "low", "close"]:
             if req not in raw.columns:
                 raw[req] = raw.get("close", np.nan) # Forward fill missing with what we have
