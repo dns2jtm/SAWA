@@ -606,18 +606,26 @@ if __name__ == "__main__":
                         help="Force refit the GMM regime model (discard cached gmm_regime_v2.pkl)")
     args = parser.parse_args()
 
-    # Auto-discover parquet files
+    # Auto-discover parquet files (prefer stitched hybrid data, then fallback to others)
     if args.auto or not args.h1:
-        h1_files = list(RAW_DIR.glob("*XAUUSD_H1_*.parquet"))
-        h4_files = list(RAW_DIR.glob("*XAUUSD_H4_*.parquet"))
-        d_files  = list(RAW_DIR.glob("*XAUUSD_D_*.parquet"))
-        if not h1_files:
+        def get_best_file(tf):
+            # 1. Prefer stitched hybrid data
+            stitched = list(RAW_DIR.glob(f"stitched_*_{tf}_hybrid.parquet"))
+            if stitched:
+                return str(stitched[0])
+            # 2. Fall back to largest available parquet (LSEG or Dukascopy)
+            files = list(RAW_DIR.glob(f"*XAUUSD_{tf}_*.parquet"))
+            if not files:
+                return None
+            return str(max(files, key=lambda f: (f.stat().st_size, f.name)))
+
+        args.h1 = get_best_file("H1")
+        args.h4 = get_best_file("H4")
+        args.d  = get_best_file("D")
+        
+        if not args.h1:
             print("No H1 data found. Run: python data/download.py first")
             raise SystemExit(1)
-        pick = lambda files: str(max(files, key=lambda f: (f.stat().st_size, f.name))) if files else None
-        args.h1 = pick(h1_files)
-        args.h4 = pick(h4_files)
-        args.d  = pick(d_files)
 
     print(f"Loading H1 : {args.h1}")
     df_h1 = pd.read_parquet(args.h1)
