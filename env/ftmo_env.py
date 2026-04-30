@@ -298,7 +298,7 @@ class FTMOEnv(gym.Env):
         block_trades = False
         close_now    = False
         if self.use_calendar and self.calendar:
-            symbol = self.cfg.get("instruments", ["EURGBP"])[0]
+            symbol = self.cfg.get("instruments", [ACTIVE_INSTRUMENT])[0]
             status: CalendarStatus = self.calendar.get_status(symbol)
             block_trades    = status.block_new_trades
             close_now       = status.close_positions
@@ -657,7 +657,7 @@ class FTMOEnv(gym.Env):
         ]
 
         # ── 2. Static Market Features (65 features from FeaturePipeline) ──────
-        static_feats = [float(row.get(col, 0.0)) for col in self._obs_columns]
+        static_feats = [float(0.0 if pd.isna(row.get(col, 0.0)) else row.get(col, 0.0)) for col in self._obs_columns]
 
         # Total = 77 features
         obs = np.array(dyn_feats + static_feats, dtype=np.float32)

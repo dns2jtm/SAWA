@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    container_name: ftmo_live_bot
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      # Ensure the bot uses the docker networking hostnames
+      - DATA_DB_HOST=postgres
+      - DATA_DB_PORT=5432
+      - DATA_DB_NAME=ftmo
+      - DATA_DB_USER=ftmo_user
+      - DATA_DB_PASSWORD=ftmo_secure_pass
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+
+  redis:
+    image: redis:7-alpine
+    container_name: ftmo_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  postgres:
+    image: timescale/timescaledb-ha:pg15-latest
+    container_name: ftmo_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ftmo_user
+      POSTGRES_PASSWORD: ftmo_secure_pass
+      POSTGRES_DB: ftmo
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ftmo_user -d ftmo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

@@ -15,7 +15,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             { href: '/dashboard/agents', label: '🤖 Active Agents' },
             { href: '/dashboard/portfolio', label: '💼 Portfolio' },
             { href: '/dashboard/strategy', label: '🔬 Strategy Lab' },
-            { href: '#', label: '⚙️ Settings' },
+            { href: '/dashboard/settings', label: '⚙️ Settings' },
           ].map(link => (
             <Link 
               key={link.label}

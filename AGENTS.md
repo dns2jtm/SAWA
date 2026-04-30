@@ -32,7 +32,7 @@ Improve the FTMO RL training pipeline safely, reproducibly, and with small audit
 - `.venv/`
 
 ## Environment rules
-- Always run commands from `~/ftmo-eurgbp`.
+- Always run commands from ~/SAWA.
 - Always prefer repo-local scripts over ad hoc commands when available.
 - Do not delete or overwrite raw data without explicit approval.
 - Do not change secrets, credentials, remotes, or branch protections without approval.

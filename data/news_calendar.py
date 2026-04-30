@@ -21,7 +21,7 @@ Usage (standalone):
 Usage (in bot):
     from data.news_calendar import CalendarFilter
     cal = CalendarFilter()
-    status = cal.get_status("EURGBP")           # returns CalendarStatus
+    status = cal.get_status("XAUUSD")           # returns CalendarStatus
     if status.block_new_trades:
         print(f"No new trades: {status.reason}")
     if status.close_positions:
@@ -133,7 +133,7 @@ def _fetch_lseg_calendar() -> list[EconomicEvent]:
     """
     events = []
     try:
-        from data.lseg_client import load_calendar_cache
+        from data.lseg import load_calendar_cache
         df = load_calendar_cache()
         if df.empty:
             return events
@@ -417,7 +417,7 @@ class CalendarFilter:
             all_events_today = self.get_events(symbol=symbol, hours_ahead=24),
         )
 
-    def print_schedule(self, symbol: str = "EURGBP"):
+    def print_schedule(self, symbol: str = "XAUUSD"):
         """Print today's event schedule to console."""
         events = self.get_events(symbol=symbol, hours_ahead=48, high_impact_only=False)
         print(f"\n📅 Economic Calendar — {symbol} — next 48 hours")
@@ -438,7 +438,7 @@ class CalendarFilter:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--symbol",   default="EURGBP")
+    parser.add_argument("--symbol",   default="XAUUSD")
     parser.add_argument("--status",   action="store_true", help="Show current trading status")
     args = parser.parse_args()
 

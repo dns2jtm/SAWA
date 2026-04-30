@@ -189,7 +189,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_trials", type=int,  default=100)
     parser.add_argument("--device",   default="auto")
-    parser.add_argument("--study",    default="ftmo_eurgbp_ppo")
+    parser.add_argument("--study",    default="ftmo_xauusd_ppo")
     args = parser.parse_args()
 
     os.makedirs("models", exist_ok=True)
@@ -234,4 +234,4 @@ if __name__ == "__main__":
                    "user_attrs": best.user_attrs}, fh, indent=2)
     print(f"\n[OPT] Best params saved → {best_path}")
     print(f"[OPT] Full study DB      → {storage}")
-    print("[OPT] Visualise: optuna-dashboard sqlite:///models/optuna_ftmo_eurgbp_ppo.db")
+    print(f"[OPT] Visualise: optuna-dashboard sqlite:///models/optuna_{args.study}.db")

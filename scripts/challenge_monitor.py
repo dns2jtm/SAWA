@@ -1,7 +1,7 @@
 """
 Challenge Monitor — Real-time FTMO account dashboard
 =====================================================
-Connects to MetaApi, pulls live account state for all configured accounts,
+Connects to cTrader, pulls live account state for all configured accounts,
 and displays a live terminal dashboard showing:
   - Current equity vs balance
   - Daily drawdown used / remaining
@@ -16,8 +16,8 @@ Usage:
     python scripts/challenge_monitor.py --interval 30      # refresh every 30s
 
 Requires:
-    META_API_TOKEN and account IDs in .env
-    pip install metaapi-cloud-sdk rich python-dotenv
+    CTRADER credentials in .env
+    pip install ctrader-open-api rich python-dotenv
 """
 
 import argparse
@@ -39,6 +39,7 @@ from rich.text import Text
 from rich import box
 
 from config.prop_firms import get_config, ACTIVE_FIRM
+from config.settings import CTRADER
 
 console = Console()
 
@@ -58,43 +59,117 @@ ACCOUNTS = {
 }
 
 
-# ── MetaApi live data fetcher ─────────────────────────────────────────────────
+# ── cTrader live data fetcher ─────────────────────────────────────────────────
 
-async def fetch_account_state(meta_api_token: str, account_id: str) -> dict:
-    """Fetch live account state from MetaApi."""
-    try:
-        from metaapi_cloud_sdk import MetaApi
-        api      = MetaApi(meta_api_token)
-        account  = await api.metatrader_account_api.get_account(account_id)
-        conn     = account.get_rpc_connection()
-        await conn.connect()
-        await conn.wait_synchronized()
+class CTraderMonitorClient:
+    _reactor_started = False
 
-        info     = await conn.get_account_information()
-        equity   = info.get("equity",  0)
-        balance  = info.get("balance", 0)
-        margin   = info.get("margin",  0)
+    def __init__(self):
+        self.client = None
+        self._connected = False
+        self._app_auth = False
+        self.account_auths = set()
 
-        positions = await conn.get_positions()
-        open_pnl  = sum(p.get("unrealizedProfit", 0) for p in positions)
+        from twisted.internet import reactor
+        import threading
+        if not CTraderMonitorClient._reactor_started:
+            CTraderMonitorClient._reactor_started = True
+            threading.Thread(target=lambda: reactor.run(installSignalHandlers=False), daemon=True).start()
 
-        await conn.close()
-        await api.close()
+        self._init_ctrader()
 
-        return {
-            "equity":       equity,
-            "balance":      balance,
-            "margin":       margin,
-            "open_pnl":     open_pnl,
-            "n_positions":  len(positions),
-            "error":        None,
-        }
-    except Exception as e:
-        return {
-            "equity":      0, "balance":     0,
-            "margin":      0, "open_pnl":    0,
-            "n_positions": 0, "error":       str(e),
-        }
+    def _init_ctrader(self):
+        try:
+            from ctrader_open_api import Client, EndPoints, TcpProtocol
+            from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import ProtoOAApplicationAuthReq
+        except ImportError:
+            return
+
+        host = EndPoints.PROTOBUF_LIVE_HOST if CTRADER.get("host") == "live" else EndPoints.PROTOBUF_DEMO_HOST
+        self.client = Client(host, CTRADER.get("port", 5035), TcpProtocol)
+
+        def on_connected(client):
+            req = ProtoOAApplicationAuthReq()
+            req.clientId = CTRADER["client_id"]
+            req.clientSecret = CTRADER["client_secret"]
+            deferred = client.send(req)
+            deferred.addCallbacks(self._on_app_auth, self._on_error)
+
+        def on_disconnected(client, reason):
+            self._connected = False
+            self._app_auth = False
+            self.account_auths.clear()
+
+        def on_message(client, message):
+            pass
+
+        self.client.setConnectedCallback(on_connected)
+        self.client.setDisconnectedCallback(on_disconnected)
+        self.client.setMessageReceivedCallback(on_message)
+        self.client.startService()
+
+    def _on_app_auth(self, response):
+        self._connected = True
+        self._app_auth = True
+
+    def _on_error(self, failure):
+        pass
+
+    async def _send_async(self, request):
+        if not self._connected:
+            raise Exception("cTrader not connected")
+        import asyncio
+        deferred = self.client.send(request)
+        loop = asyncio.get_event_loop()
+        return await deferred.asFuture(loop)
+
+    async def fetch_state(self, account_id: str) -> dict:
+        if not self._app_auth:
+            return {"error": "Connecting to cTrader...", "equity": 0, "balance": 0, "margin": 0, "open_pnl": 0, "n_positions": 0}
+
+        acc_id = int(account_id)
+        if acc_id not in self.account_auths:
+            from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOAAccountAuthReq
+            req = ProtoOAAccountAuthReq()
+            req.ctidTraderAccountId = acc_id
+            req.accessToken = CTRADER["access_token"]
+            try:
+                await self._send_async(req)
+                self.account_auths.add(acc_id)
+            except Exception as e:
+                return {"error": f"Auth failed: {e}", "equity": 0, "balance": 0, "margin": 0, "open_pnl": 0, "n_positions": 0}
+
+        try:
+            from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOATraderReq, ProtoOAReconcileReq
+            req_trader = ProtoOATraderReq()
+            req_trader.ctidTraderAccountId = acc_id
+            res_trader = await self._send_async(req_trader)
+
+            req_rec = ProtoOAReconcileReq()
+            req_rec.ctidTraderAccountId = acc_id
+            res_rec = await self._send_async(req_rec)
+
+            trader = res_trader.payload.trader
+            equity = trader.equity / 100.0
+            balance = trader.balance / 100.0
+            margin = getattr(trader, "usedMargin", 0) / 100.0
+
+            n_positions = 0
+            if res_rec.payload and hasattr(res_rec.payload, "position"):
+                n_positions = len(res_rec.payload.position)
+
+            open_pnl = equity - balance
+
+            return {
+                "equity": equity,
+                "balance": balance,
+                "margin": margin,
+                "open_pnl": open_pnl,
+                "n_positions": n_positions,
+                "error": None
+            }
+        except Exception as e:
+            return {"error": str(e), "equity": 0, "balance": 0, "margin": 0, "open_pnl": 0, "n_positions": 0}
 
 
 # ── Dashboard rendering ───────────────────────────────────────────────────────
@@ -234,10 +309,10 @@ def _print_alerts(account_states: list):
 # ── Main loop ─────────────────────────────────────────────────────────────────
 
 async def run_monitor(account_ids: list, interval: int = 60):
-    meta_api_token = os.getenv("META_API_TOKEN", "")
+    client_id = CTRADER.get("client_id", "")
 
-    if not meta_api_token:
-        console.print("[red]META_API_TOKEN not set in .env — using demo mode[/red]")
+    if not client_id:
+        console.print("[red]CTRADER credentials not set in .env — using demo mode[/red]")
         # Demo mode — simulated state for testing without MetaApi
         demo_states = [
             {"equity": 68_756.06, "balance": 67_688.88, "open_pnl": 1_067.18, "n_positions": 1, "margin": 200, "error": None},
@@ -293,6 +368,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.demo:
-        os.environ["META_API_TOKEN"] = ""
+        CTRADER["client_id"] = ""
 
     asyncio.run(run_monitor(args.account, args.interval))

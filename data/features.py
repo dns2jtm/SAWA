@@ -335,7 +335,7 @@ class FeaturePipeline:
     ]   # total = 8+10+8+8+4+6+6+5+6+4 = 65 ✅
 
     def __init__(self):
-        assert len(self.OBS_COLUMNS) == OBS_DIM,             f"Column count mismatch: {len(self.OBS_COLUMNS)} != {OBS_DIM}"
+        assert len(self.OBS_COLUMNS) == OBS_DIM, f"Column count mismatch: {len(self.OBS_COLUMNS)} != {OBS_DIM}"
 
     def build(self, df_h1: pd.DataFrame,
               df_h4: Optional[pd.DataFrame] = None,
@@ -361,8 +361,7 @@ class FeaturePipeline:
         if median_close > 10_000:
             scale_factor = round(median_close / 3000)  # nearest power-of-10 factor
             if scale_factor > 1:
-                import warnings as _w
-                _w.warn(
+                warnings.warn(
                     f"[FeaturePipeline] Detected price scale error: "
                     f"median close={median_close:.0f}, dividing OHLC by {scale_factor}. "
                     f"Fix the download divisor to avoid this.",
@@ -523,7 +522,7 @@ class FeaturePipeline:
         # retraining runs (GMM label permutation is otherwise non-deterministic).
         from sklearn.mixture import GaussianMixture
 
-        GMM_CACHE = FEATURES_DIR / "gmm_regime.pkl"
+        GMM_CACHE = FEATURES_DIR / "gmm_regime_v2.pkl"
 
         # Prepare features for GMM (forward-fill any NaNs in inputs first)
         regime_feats = df[["hist_vol_20", "adx_14"]].ffill().bfill().values
@@ -533,22 +532,27 @@ class FeaturePipeline:
                 with open(GMM_CACHE, "rb") as _f:
                     gmm = pickle.load(_f)
             else:
-                # LOOKAHEAD FIX: fit on the training split only (first 80% of bars),
-                # mirroring the 80/10/10 chronological split in models/train.py.
+                # LOOKAHEAD FIX: fit on the training split only (first 80% of data),
+                # mirroring the exact chronological split in models/train.py.
                 # Prevents val/test regime distributions from leaking into features.
                 train_end_idx = int(len(regime_feats) * 0.80)
                 train_feats   = regime_feats[:train_end_idx]
+                print(f"  GMM fitted on first {train_end_idx:,} bars (80% training split) → {GMM_CACHE}")
+
                 gmm = GaussianMixture(n_components=3, random_state=42, n_init=3)
                 gmm.fit(train_feats)
                 with open(GMM_CACHE, "wb") as _f:
                     pickle.dump(gmm, _f)
-                print(f"  GMM fitted on first {train_end_idx:,} bars (train split) → {GMM_CACHE}")
 
             regime_probs = gmm.predict_proba(regime_feats)
 
-            df["hmm_regime_0"] = regime_probs[:, 0]
-            df["hmm_regime_1"] = regime_probs[:, 1]
-            df["hmm_regime_2"] = regime_probs[:, 2]
+            # Ensure stable regime labels by sorting components by their mean volatility
+            # hist_vol_20 is feature index 0. This guarantees:
+            # Regime 0 = Low Vol, Regime 1 = Med Vol, Regime 2 = High Vol
+            order = np.argsort(gmm.means_[:, 0])
+            df["hmm_regime_0"] = regime_probs[:, order[0]]
+            df["hmm_regime_1"] = regime_probs[:, order[1]]
+            df["hmm_regime_2"] = regime_probs[:, order[2]]
         except Exception as e:
             print(f"  ⚠ GMM regime fitting failed ({e}) — falling back to 1/3")
             df["hmm_regime_0"] = 1/3
@@ -599,7 +603,7 @@ if __name__ == "__main__":
     parser.add_argument("--auto", action="store_true",
                         help="Auto-find latest parquet files in data/raw/")
     parser.add_argument("--refit-gmm", action="store_true",
-                        help="Force refit the GMM regime model (discard cached gmm_regime.pkl)")
+                        help="Force refit the GMM regime model (discard cached gmm_regime_v2.pkl)")
     args = parser.parse_args()
 
     # Auto-discover parquet files

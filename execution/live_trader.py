@@ -1,5 +1,5 @@
 """
-Live trading execution engine for EURGBP on FTMO MT5 via MetaApi.
+Live trading execution engine for XAUUSD on FTMO MT5 via MetaApi.
 
 Features:
   - Real-time H1 bar streaming via MetaApi WebSocket
@@ -80,7 +80,7 @@ KILL_DAILY     = FTMO["daily_dd_kill_pct"] * INITIAL_BAL
 KILL_TOTAL     = FTMO["total_dd_kill_pct"] * INITIAL_BAL
 PROFIT_TARGET  = FTMO["profit_target_phase1"] * INITIAL_BAL
 
-MODEL_PATH     = os.path.join(os.path.dirname(__file__), "..", "models", "ppo_eurgbp_final")
+MODEL_PATH     = os.path.join(os.path.dirname(__file__), "..", "models", "ppo_xauusd_final")
 VECNORM_PATH   = os.path.join(os.path.dirname(__file__), "..", "models", "vecnorm_final.pkl")
 
 RISK_TABLE = {

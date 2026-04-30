@@ -9,13 +9,12 @@ Sources (all free, no API key required):
   2. GDELT      — Global news event database (free, no key)
   3. Lexicon    — Gold-specific keyword scoring (fallback)
 
-Features produced (Group I — obs indices 50-55):
+Features produced (Group I — obs indices 55-59):
   sentiment_score    — [-1, +1]  bullish/bearish for Gold right now
   sentiment_novelty  — [0, 1]   how different current sentiment is from 24hr avg
   sentiment_momentum — [-1, +1]  direction sentiment is moving
   news_volume        — [0, 1]   normalised count of gold-relevant headlines per hour
   event_flag         — {0, 1}   1 = high-impact scheduled event within 2 hours
-  calendar_block     — {0, 1}   1 = calendar filter is currently blocking entries
 """
 
 import os
@@ -198,7 +197,7 @@ class SentimentStore:
 
     def get_features(self, calendar_blocked: bool = False) -> np.ndarray:
         """
-        Returns obs[50:56] — 6 sentiment features as float32.
+        Returns obs[55:60] — 5 sentiment features as float32.
         """
         score    = np.clip(self._weighted_score(), -1.0, 1.0)
         n        = len(self._records)
@@ -227,7 +226,6 @@ class SentimentStore:
             momentum,         # sentiment_momentum
             vol,              # news_volume
             event_flag,       # event_flag
-            float(calendar_blocked),  # calendar_block
         ], dtype=np.float32)
 
 
@@ -247,7 +245,7 @@ class SentimentPipeline:
         )
         self._last_refresh = 0.0
         self._interval     = SENTIMENT["refresh_interval_sec"]
-        self._features     = np.zeros(6, dtype=np.float32)
+        self._features     = np.zeros(5, dtype=np.float32)
         self._features[1]  = 0.5   # novelty default
 
     def refresh(self, calendar_blocked: bool = False, force: bool = False):
@@ -287,7 +285,7 @@ if __name__ == "__main__":
     pipe.refresh(force=True)
     feats = pipe.get_features()
     labels = ["sentiment_score", "sentiment_novelty", "sentiment_momentum",
-              "news_volume", "event_flag", "calendar_block"]
+              "news_volume", "event_flag"]
     print("\n── Sentiment Features ──")
     for label, val in zip(labels, feats):
         print(f"  {label:<25} {val:+.4f}")

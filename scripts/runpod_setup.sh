@@ -1,6 +1,6 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────────────────
-# RunPod setup script for ftmo-eurgbp
+# RunPod setup script for SAWA
 # Tested on: RunPod PyTorch 2.x image | NVIDIA RTX 2000 Ada
 #
 # Usage (run once after pod starts):
@@ -9,7 +9,7 @@
 
 set -e
 echo "================================================"
-echo " FTMO EURGBP — RunPod Environment Setup"
+echo " FTMO SAWA — RunPod Environment Setup"
 echo "================================================"
 
 # ── 1. System packages ────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ echo "[3/7] Redis ready."
 # ── 4. Python dependencies ────────────────────────────────────────────────────
 echo "[4/7] Installing Python packages..."
 pip install --quiet --upgrade pip
-pip install --quiet -r /workspace/ftmo-eurgbp/requirements.txt
+pip install --quiet -r /workspace/SAWA/requirements.txt
 echo "[4/7] Python packages installed."
 
 # ── 5. TA-Lib (C library + Python wrapper) ───────────────────────────────────
@@ -81,18 +81,18 @@ if torch.cuda.is_available():
 
 # ── 8. Sanity-check imports ───────────────────────────────────────────────────
 echo "[8] Checking project imports..."
-cd /workspace/ftmo-eurgbp
+cd /workspace/SAWA
 python3 -c "
-from config.settings import FTMO, RL, DATA, EXECUTION
-from data.features import FEATURE_COLS
-from env.ftmo_env import FTMOSwingEnv
+from config.settings import FTMO, EXECUTION
+from data.features import FeaturePipeline
+from env.ftmo_env import FTMOEnv
 print('✅ All imports OK')
 print(f'   Account    : £{FTMO[\"account_balance\"]:,}')
 print(f'   Kill daily : {FTMO[\"daily_dd_kill_pct\"]:.1%}')
 print(f'   Kill total : {FTMO[\"total_dd_kill_pct\"]:.1%}')
 print(f'   Platform   : {EXECUTION[\"platform\"]}')
 print(f'   Server     : {EXECUTION[\"ftmo_server\"]}')
-print(f'   Features   : {len(FEATURE_COLS)}')
+print(f'   Features   : {len(FeaturePipeline.OBS_COLUMNS)}')
 "
 
 echo ""
@@ -102,7 +102,7 @@ echo ""
 echo "  1. Edit config/settings.py — paste your MetaApi token"
 echo "  2. python data/download.py          # fetch data"
 echo "  3. python scripts/optimise.py       # HPO (optional)"
-echo "  4. python models/train.py --mode walkforward"
-echo "  5. python scripts/backtest.py --monte_carlo 500"
-echo "  6. python execution/live_trader.py  # go live"
+echo "  4. python models/train.py           # train agent"
+echo "  5. python models/backtest.py --report # validation"
+echo "  6. python execution/live.py --demo  # paper trading"
 echo "================================================"

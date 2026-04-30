@@ -140,7 +140,7 @@ def download_ohlcv(
     symbol: str = "XAUUSD",
     tf:     str = "H1",
     start:  str = "2004-01-01",
-    end:    str = None,
+    end:    Optional[str] = None,
     force:  bool = False,
 ) -> pd.DataFrame:
     """
@@ -197,36 +197,29 @@ def download_ohlcv(
         log.info(f"LSEG Raw columns: {list(raw.columns)}")
         
         # Flatten MultiIndex if necessary, and handle tuples
-        raw.columns = [str(c).lower() for c in raw.columns]
+        new_cols = []
+        parsed_set = set()
+        for c in raw.columns:
+            cl = str(c).lower()
+            if "open" in cl and "open" not in parsed_set: 
+                new_cols.append("open")
+                parsed_set.add("open")
+            elif "high" in cl and "high" not in parsed_set:
+                new_cols.append("high")
+                parsed_set.add("high")
+            elif "low" in cl and "low" not in parsed_set:
+                new_cols.append("low")
+                parsed_set.add("low")
+            elif ("close" in cl or "last" in cl or "prc" in cl) and "close" not in parsed_set:
+                new_cols.append("close")
+                parsed_set.add("close")
+            elif ("vol" in cl) and "volume" not in parsed_set:
+                new_cols.append("volume")
+                parsed_set.add("volume")
+            else:
+                new_cols.append(cl) # Keep whatever it was
         
-        # Robustly map varying LSEG column names to standard indicator names
-        rename_dict = {}
-        def _find(keywords, prioritize_mid=True):
-            cols = list(raw.columns)
-            if prioritize_mid:
-                for k in keywords:
-                    for c in cols:
-                        if k in c and "mid" in c: return c
-            for k in keywords:
-                if k in cols: return k
-            for k in keywords:
-                for c in cols:
-                    if k in c: return c
-            return None
-            
-        c_open = _find(["open"])
-        c_high = _find(["high"])
-        c_low  = _find(["low"])
-        c_close = _find(["close", "price", "prc", "last", "bid", "ask"])
-        c_vol  = _find(["volume", "vol"])
-        
-        if c_open: rename_dict[c_open] = "open"
-        if c_high: rename_dict[c_high] = "high"
-        if c_low: rename_dict[c_low] = "low"
-        if c_close: rename_dict[c_close] = "close"
-        if c_vol: rename_dict[c_vol] = "volume"
-        
-        raw.rename(columns=rename_dict, inplace=True)
+        raw.columns = new_cols
         
         # Deduplicate columns if any (keep first)
         raw = raw.loc[:, ~raw.columns.duplicated()]
@@ -234,8 +227,10 @@ def download_ohlcv(
         # Check standard fields
         for col in ["open", "high", "low", "close", "volume"]:
             if col not in raw.columns:
-                if col == "volume": raw["volume"] = 0.0
-                else: raw[col] = raw.get("close", np.nan) # Forward fill any missing OHL from close
+                if col == "volume":
+                    raw["volume"] = 0.0
+                else:
+                    raw[col] = raw.get("close", np.nan) # Forward fill any missing OHL from close
 
         df = raw[["open", "high", "low", "close", "volume"]].dropna(
             subset=["close"]
@@ -255,7 +250,7 @@ def download_ohlcv(
 
 def download_macro(
     start: str = "2004-01-01",
-    end:   str = None,
+    end:   Optional[str] = None,
     force: bool = False,
 ) -> pd.DataFrame:
     """
@@ -347,8 +342,8 @@ def download_macro(
 # ════════════════════════════════════════════════════════════════════════════════
 
 def download_calendar(
-    start: str = None,
-    end:   str = None,
+    start: Optional[str] = None,
+    end:   Optional[str] = None,
     force: bool = False,
 ) -> pd.DataFrame:
     """
@@ -475,7 +470,7 @@ def _score(text: str) -> float:
 
 def download_sentiment(
     start:         str = "2022-01-01",
-    end:           str = None,
+    end:           Optional[str] = None,
     force:         bool = False,
     max_headlines: int  = 20_000,
 ) -> pd.DataFrame:
@@ -571,7 +566,7 @@ def download_sentiment(
 # CACHE LOADERS  (used by features.py without opening a session)
 # ════════════════════════════════════════════════════════════════════════════════
 
-def load_macro_cache(start: str = None, end: str = None) -> pd.DataFrame:
+def load_macro_cache(start: Optional[str] = None, end: Optional[str] = None) -> pd.DataFrame:
     """
     Load the most recent cached LSEG macro parquet.
     Returns empty DataFrame when no cache exists.
@@ -589,7 +584,7 @@ def load_macro_cache(start: str = None, end: str = None) -> pd.DataFrame:
     return df
 
 
-def load_sentiment_cache(start: str = None, end: str = None) -> pd.DataFrame:
+def load_sentiment_cache(start: Optional[str] = None, end: Optional[str] = None) -> pd.DataFrame:
     """
     Load the most recent cached LSEG sentiment parquet.
     Returns empty DataFrame when no cache exists.

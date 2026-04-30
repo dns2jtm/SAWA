@@ -11,7 +11,7 @@
 #   5. Copies final model to /workspace/output/ for easy download
 #
 # Environment variables (set in RunPod template or pod env):
-#   GITHUB_REPO   — e.g. https://github.com/dns2jtm/ftmo-eurgbp.git
+#   GITHUB_REPO   — e.g. https://github.com/dns2jtm/SAWA.git
 #   GITHUB_BRANCH — default: dev
 #   N_ENVS        — parallel envs (A100: 32, 4090: 16)
 #   TIMESTEPS     — default: 20000000
@@ -22,9 +22,9 @@
 
 set -e
 
-REPO="${GITHUB_REPO:-https://github.com/dns2jtm/ftmo-eurgbp.git}"
+REPO="${GITHUB_REPO:-https://github.com/dns2jtm/SAWA.git}"
 BRANCH="${GITHUB_BRANCH:-dev}"
-WORKDIR="/workspace/ftmo-eurgbp"
+WORKDIR="/workspace/SAWA"
 N_ENVS="${N_ENVS:-32}"
 TIMESTEPS="${TIMESTEPS:-20000000}"
 PHASE="${PHASE:-1}"

@@ -10,10 +10,10 @@ using Stable-Baselines3. The agent learns to:
   5. Respect the economic calendar
 
 Training regime:
-  Phase 1 — Warm-up         (0-2M steps):   Low penalty, learn basic trading mechanics
-  Phase 2 — Constraint drill (2-6M steps):  Ramp up DD penalties, teach survival
-  Phase 3 — Target drill     (6-10M steps): Target reward scaled up, push for profit
-  Curriculum advances automatically when mean_reward improves 3 epochs in a row
+  Phase 1 — Warm-up         (0-3M steps):   Low penalty, learn basic trading mechanics
+  Phase 2 — Constraint drill (3-7M steps):  Ramp up DD penalties, teach survival
+  Phase 3 — Target drill     (7-10M steps): Target reward scaled up, push for profit
+  Curriculum advances automatically at fixed step thresholds.
 
 Usage:
   python models/train.py                        # full train from scratch
@@ -54,9 +54,7 @@ except ImportError:
     _SB3_OK = False
     print("⚠ stable-baselines3 not installed. Run: pip install stable-baselines3[extra]")
 
-import gymnasium as gym
-
-from config.settings    import RL, FTMO, DATA, INSTRUMENT
+from config.settings    import RL, FTMO
 from config.prop_firms  import get_config, ACTIVE_FIRM
 from config.instruments import get_instrument, ACTIVE_INSTRUMENT
 from data.features      import FeaturePipeline

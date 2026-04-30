@@ -397,7 +397,7 @@ class OrderManager:
         self.client.startService()
 
     def _on_app_auth(self, response):
-        from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import ProtoOAAccountAuthReq
+        from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOAAccountAuthReq
         log.info("App authenticated - authenticating account...")
         req = ProtoOAAccountAuthReq()
         req.ctidTraderAccountId = int(CTRADER["account_id"])
@@ -406,7 +406,23 @@ class OrderManager:
         deferred.addCallbacks(self._on_account_auth, self._on_error)
 
     def _on_account_auth(self, response):
-        log.info("Account authenticated - cTrader fully operational.")
+        from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOASymbolsListReq
+        log.info("Account authenticated - fetching symbols...")
+        req = ProtoOASymbolsListReq()
+        req.ctidTraderAccountId = int(CTRADER["account_id"])
+        req.includeBaseSymbols = False
+        deferred = self.client.send(req)
+        deferred.addCallbacks(self._on_symbols_list, self._on_error)
+
+    def _on_symbols_list(self, response):
+        target_sym = INST.get("symbol", "XAUUSD")
+        self.symbol_id = 1  # Fallback
+        if hasattr(response.payload, "symbol"):
+            for sym in response.payload.symbol:
+                if sym.symbolName == target_sym:
+                    self.symbol_id = sym.symbolId
+                    break
+        log.info(f"cTrader fully operational. Symbol ID for {target_sym}: {self.symbol_id}")
         self._connected = True
 
     def _on_error(self, failure):
@@ -431,7 +447,7 @@ class OrderManager:
             }
         
         try:
-            from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import ProtoOATraderReq
+            from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOATraderReq
             req = ProtoOATraderReq()
             req.ctidTraderAccountId = int(CTRADER["account_id"])
             res = await self._send_async(req)
@@ -452,7 +468,7 @@ class OrderManager:
         if self.dry_run:
             return [self.open_position] if self.open_position else []
         try:
-            from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import ProtoOAReconcileReq
+            from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOAReconcileReq
             req = ProtoOAReconcileReq()
             req.ctidTraderAccountId = int(CTRADER["account_id"])
             res = await self._send_async(req)
@@ -494,28 +510,34 @@ class OrderManager:
             return None
 
         try:
-            from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import ProtoOANewOrderReq
-            from ctrader_open_api.messages.OpenApiMessages_pb2 import BUY, SELL, MARKET
+            from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOANewOrderReq, BUY, SELL, MARKET
             
             req = ProtoOANewOrderReq()
             req.ctidTraderAccountId = int(CTRADER["account_id"])
-            req.symbolId = 1 # Update with actual symbol ID for XAUUSD mappings
+            req.symbolId = getattr(self, "symbol_id", 1)
             req.orderType = MARKET
             req.tradeSide = BUY if direction > 0 else SELL
-            req.volume = int(lot * 100) # Volume representation specifics
+            req.volume = int(lot * 100000) # Volume representation specifics
             req.stopLoss = float(sl_price)
             req.takeProfit = float(tp_price)
             req.comment = comment
 
             res = await self._send_async(req)
-            ticket = str(res.payload.order.orderId) if res and res.payload else f"CTR_{int(time.time())}"
+            ticket = f"CTR_{int(time.time())}"
+            entry_price = 0.0
             
+            if res and res.payload:
+                if hasattr(res.payload, "order") and hasattr(res.payload.order, "orderId"):
+                    ticket = str(res.payload.order.orderId)
+                if hasattr(res.payload, "position") and hasattr(res.payload.position, "price"):
+                    entry_price = res.payload.position.price / 100000.0
+
             self.open_position = {
                 "ticket": ticket, "direction": direction, "lot": lot,
-                "entry": 0.0, # Fetch real entry from response
+                "entry": entry_price,
                 "sl": sl_price, "tp": tp_price, "opened_at": datetime.now(timezone.utc).isoformat(), "unrealized_pnl": 0.0,
             }
-            log.info(f"[cTrader] {side} {lot} {symbol} ticket={ticket}")
+            log.info(f"[cTrader] {side} {lot} {symbol} ticket={ticket} entry={entry_price}")
             return ticket
         except Exception as e:
             log.error(f"Failed to open trade: {e}")
@@ -536,11 +558,11 @@ class OrderManager:
             return False
 
         try:
-            from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import ProtoOAClosePositionReq
+            from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOAClosePositionReq
             req = ProtoOAClosePositionReq()
             req.ctidTraderAccountId = int(CTRADER["account_id"])
             req.positionId = int(ticket)
-            req.volume = int(self.open_position["lot"] * 100) if self.open_position else 0
+            req.volume = int(self.open_position["lot"] * 100000) if self.open_position else 0
             
             await self._send_async(req)
             log.info(f"[cTrader] CLOSE ticket={ticket}")
@@ -568,7 +590,7 @@ class OrderManager:
             return False
 
         try:
-            from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import ProtoOAAmendPositionSLTPReq
+            from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOAAmendPositionSLTPReq
             req = ProtoOAAmendPositionSLTPReq()
             req.ctidTraderAccountId = int(CTRADER["account_id"])
             req.positionId = int(ticket)
@@ -581,6 +603,49 @@ class OrderManager:
             return False
 
     async def get_latest_h1_bar(self) -> Optional[pd.DataFrame]:
+        if self.dry_run or not self._connected or not getattr(self, "symbol_id", None):
+            return None
+            
+        try:
+            from ctrader_open_api.messages.OpenApiMessages_pb2 import ProtoOAGetTrendbarsReq, H1
+            import time
+
+            now_ms = int(time.time() * 1000)
+            req = ProtoOAGetTrendbarsReq()
+            req.ctidTraderAccountId = int(CTRADER["account_id"])
+            req.period = H1
+            req.fromTimestamp = now_ms - (86400 * 1000 * 3) # last 3 days
+            req.toTimestamp = now_ms
+            req.symbolId = self.symbol_id
+
+            res = await self._send_async(req)
+            if res and res.payload and hasattr(res.payload, 'trendbar'):
+                bars = res.payload.trendbar
+                if not bars:
+                    return None
+
+                records = []
+                divisor = 100000.0  # standard price divisor
+                for b in bars:
+                    low = b.low / divisor
+                    open_p = low + (getattr(b, "deltaOpen", 0) / divisor)
+                    high_p = low + (getattr(b, "deltaHigh", 0) / divisor)
+                    close_p = low + (getattr(b, "deltaClose", 0) / divisor)
+                    vol = getattr(b, "volume", 0)
+
+                    dt = pd.to_datetime(b.utcTimestampInMinutes, unit='m', utc=True)
+                    records.append({
+                        "datetime": dt, "open": open_p, "high": high_p,
+                        "low": low, "close": close_p, "volume": vol
+                    })
+                
+                if not records:
+                    return None
+                    
+                df = pd.DataFrame(records).set_index("datetime").sort_index()
+                return df.iloc[[-1]]
+        except Exception as e:
+            log.error(f"Failed to fetch latest H1 bar: {e}")
         return None
 
 
@@ -891,17 +956,15 @@ class LiveTrader:
             open_pnl / (initial_balance + 1e-9),
         ], dtype=np.float32)
 
-        # Patch live sentiment into static obs indices 55-60
-        # (sentiment_score, novelty, momentum, volume, event_flag, calendar_block)
+        # Patch live sentiment into static obs indices 55-59
+        # (sentiment_score, novelty, momentum, volume, event_flag)
         static = static_obs.copy()
         if self._sentiment is not None:
             try:
                 sent_feats = self._sentiment.get_features(calendar_blocked=cal_blocked)
-                static[55:61] = sent_feats
+                static[55:60] = sent_feats
             except Exception:
                 pass
-        # Patch calendar_block even if SentimentPipeline unavailable
-        static[60] = float(cal_blocked)
 
         obs = np.concatenate([dyn, static]).astype(np.float32)
         return np.nan_to_num(obs, nan=0.0, posinf=1.0, neginf=-1.0)
