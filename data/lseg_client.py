@@ -181,7 +181,6 @@ def download_ohlcv(
         log.info(f"Downloading {key} from LSEG  {start} → {end} ...")
         raw = lib.get_history(
             universe = ric,
-            fields   = ["OPEN", "HIGH", "LOW", "CLOSE", "VOLUME"],
             interval = interval,
             start    = start,
             end      = end,
@@ -336,13 +335,13 @@ def download_calendar(
         raw, err = lib.get_data(
             universe   = ["ECOREL"],
             fields     = [
-                "TR.ECOREL_DT",
-                "TR.ECOREL_NAME",
-                "TR.ECOREL_ACT",
-                "TR.ECOREL_FORE",
-                "TR.ECOREL_PRIOR",
-                "TR.ECOREL_IMP",
-                "TR.ECOREL_CURR",
+                "TR.EcoRelDt",
+                "TR.EcoRelName",
+                "TR.EcoRelAct",
+                "TR.EcoRelFore",
+                "TR.EcoRelPrior",
+                "TR.EcoRelImp",
+                "TR.EcoRelCurr",
             ],
             parameters = {"SDate": start, "EDate": end},
         )
@@ -454,8 +453,6 @@ def download_sentiment(
         log.info(f"Fetching Reuters headlines  {start} → {end} ...")
         raw = lib.news.get_headlines(
             query     = NEWS_QUERY,
-            dateFrom  = start,
-            dateTo    = end,
             count     = max_headlines,
         )
         if raw is None or len(raw) == 0:
@@ -472,6 +469,13 @@ def download_sentiment(
             return pd.DataFrame()
 
         df_n["dt"]    = pd.to_datetime(df_n[ts_col], utc=True)
+        # Filter by requested dates
+        start_dt = pd.to_datetime(start, utc=True)
+        end_dt   = pd.to_datetime(end, utc=True)
+        df_n     = df_n[(df_n["dt"] >= start_dt) & (df_n["dt"] <= end_dt)]
+        if df_n.empty:
+            return pd.DataFrame()
+            
         text_col      = next((c for c in ["text", "headline", "title"] if c in df_n.columns), None)
         df_n["score"] = df_n[text_col].apply(_score) if text_col else 0.0
 
