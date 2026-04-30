@@ -404,7 +404,7 @@ if __name__ == "__main__":
             if not open_session():
                 print("  LSEG session unavailable — check credentials or lseg-data install")
                 _sys.exit(1)
-            for tf in args.tf:
+            for tf in [t for t in args.tf if t in ("H1", "D")]:
                 download_ohlcv(args.symbol, tf, args.start, args.end)
             download_macro(args.start, args.end)
             download_calendar(args.start, args.end)

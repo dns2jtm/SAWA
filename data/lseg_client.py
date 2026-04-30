@@ -65,9 +65,8 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 # ── RIC / interval definitions ────────────────────────────────────────────────
 
 OHLCV_RICS = {
-    "XAUUSD_H1": ("XAU=", "1Hour"),
-    "XAUUSD_H4": ("XAU=", "4Hour"),
-    "XAUUSD_D":  ("XAU=", "daily"),
+    "XAUUSD_H1": ("XAU=", "1h"),
+    "XAUUSD_D":  ("XAU=", "1D"),
 }
 
 MACRO_RICS = {
@@ -251,14 +250,15 @@ def download_macro(
         try:
             raw = lib.get_history(
                 universe = ric,
-                fields   = ["CLOSE"],
-                interval = "daily",
+                interval = "1D",
                 start    = start,
                 end      = end,
             )
             if raw is not None and not raw.empty:
                 raw.index = pd.to_datetime(raw.index, utc=True)
-                series[col] = raw["CLOSE"].rename(col)
+                raw.columns = [c.lower() for c in raw.columns]
+                close_col = "close" if "close" in raw.columns else raw.columns[0]
+                series[col] = raw[close_col].rename(col)
                 log.info(f"  ✅  {col:15s} ({ric}): {series[col].notna().sum():,} obs")
         except Exception as exc:
             log.warning(f"  ⚠   {col:15s} ({ric}): {exc}")
@@ -344,7 +344,7 @@ def download_calendar(
                 "TR.ECOREL_IMP",
                 "TR.ECOREL_CURR",
             ],
-            parameters = {"SDate": start, "EDate": end, "CACTIV": "1"},
+            parameters = {"SDate": start, "EDate": end},
         )
         if raw is None or raw.empty:
             return pd.DataFrame()
@@ -454,8 +454,8 @@ def download_sentiment(
         log.info(f"Fetching Reuters headlines  {start} → {end} ...")
         raw = lib.news.get_headlines(
             query     = NEWS_QUERY,
-            date_from = start,
-            date_to   = end,
+            dateFrom  = start,
+            dateTo    = end,
             count     = max_headlines,
         )
         if raw is None or len(raw) == 0:
