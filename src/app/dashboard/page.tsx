@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { Activity, TrendingUp, ShieldAlert, Zap, Wifi, WifiOff } from 'lucide-react';
+import EquityChart from './EquityChart';
 
 export default function DashboardOverview() {
   const [metrics, setMetrics] = useState({
@@ -10,6 +11,7 @@ export default function DashboardOverview() {
     last_action: 'WAITING'
   });
   const [isConnected, setIsConnected] = useState(false);
+  const [equityHistory, setEquityHistory] = useState<{timestamp: string; equity: number}[]>([]);
 
   useEffect(() => {
     let ws: WebSocket;
@@ -28,6 +30,15 @@ export default function DashboardOverview() {
         try {
           const data = JSON.parse(event.data);
           setMetrics(prev => ({ ...prev, ...data }));
+          
+          if (data.equity && data.equity > 0) {
+            setEquityHistory(prev => {
+              const now = new Date().toISOString();
+              const updated = [...prev, { timestamp: data.timestamp || now, equity: data.equity }];
+              // Keep last 1000 points to prevent memory bloat
+              return updated.length > 1000 ? updated.slice(updated.length - 1000) : updated;
+            });
+          }
         } catch (e) {
           console.error('Error parsing metrics data', e);
         }
@@ -123,14 +134,27 @@ export default function DashboardOverview() {
         </div>
       </div>
 
-      <div className="glass-panel p-6 min-h-[300px] flex items-center justify-center flex-col text-center border-dashed border-white/10 border-2">
-        <Activity className={`w-8 h-8 mb-4 ${isConnected ? 'text-cyan-500 animate-pulse' : 'text-slate-600'}`} />
-        <h3 className="text-lg font-bold text-white mb-2">Live Execution Feed</h3>
-        <p className="text-slate-500 text-sm max-w-md">
-          {isConnected 
-            ? 'Streaming real-time organism decisions and portfolio metrics from the backend...' 
-            : 'Waiting for WebSocket connection to display live trading activity.'}
-        </p>
+      <div className="glass-panel p-6 min-h-[400px] flex flex-col relative overflow-hidden">
+        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <Activity className="w-5 h-5 text-cyan-400" />
+          Live Equity Curve
+        </h3>
+        
+        {equityHistory.length > 0 ? (
+          <div className="flex-1 w-full">
+            <EquityChart history={equityHistory} />
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-center border-dashed border-white/10 border-2 rounded-xl bg-black/20">
+            <Activity className={`w-8 h-8 mb-4 ${isConnected ? 'text-cyan-500 animate-pulse' : 'text-slate-600'}`} />
+            <h3 className="text-lg font-bold text-white mb-2">Live Execution Feed</h3>
+            <p className="text-slate-500 text-sm max-w-md">
+              {isConnected 
+                ? 'Streaming real-time organism decisions and portfolio metrics from the backend...' 
+                : 'Waiting for WebSocket connection to display live trading activity.'}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
