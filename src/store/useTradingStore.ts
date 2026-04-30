@@ -1,120 +1,94 @@
 import { create } from 'zustand';
 
-export type Position = {
-  id: string;
-  type: 'BUY' | 'SHORT';
-  openTime: string;
-  volume: number;
-  symbol: string;
-  profit: number;
-  pips: number;
+export type EquityPoint = {
+  timestamp: string;
+  equity: number;
 };
 
-export type DailySummary = {
-  date: string;
-  trades: number;
-  lots: number;
-  result: number;
-};
-
-type AccountStats = {
-  balance?: number;
-  currency?: string;
-  net_pnl?: number;
-  net_pnl_pct?: number;
-  daily_summary?: DailySummary[];
-};
-
-type AccountType = {
-  accountStats: AccountStats;
-  positions: Position[];
-  balance: number;
-  isSimulated: boolean;
-  isLive: boolean;
+export type OrganismMetrics = {
+  equity: number;
+  drawdown: number;
   volatility: number;
-  lastAction: string;
+  last_action: string;
 };
 
 interface TradingStoreState {
-  accounts: Record<string, AccountType>;
-  equity: number;
-  equityHistory: { equity: number; timestamp: string }[];
-  drawdown: number;
+  isConnected: boolean;
+  metrics: OrganismMetrics;
+  equityHistory: EquityPoint[];
+  connect: () => void;
+  disconnect: () => void;
 }
 
-export const useTradingStore = create<TradingStoreState>((set) => {
-  // Start simulation loop for client-side demo
-  if (typeof window !== 'undefined') {
-    setInterval(() => {
-      set((state) => {
-        const lastEq = state.equity;
-        const trend = Math.random() > 0.4 ? 1 : -1; // Slight upward bias
-        const diff = (Math.random() * 25) * trend; // random small gain or loss
-        const newEq = lastEq + diff;
+let ws: WebSocket | null = null;
+let reconnectTimeout: NodeJS.Timeout | null = null;
+
+export const useTradingStore = create<TradingStoreState>((set, get) => ({
+  isConnected: false,
+  metrics: {
+    equity: 0,
+    drawdown: 0.0,
+    volatility: 0.0,
+    last_action: 'WAITING'
+  },
+  equityHistory: [],
+
+  connect: () => {
+    if (typeof window === 'undefined') return;
+    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
+
+    ws = new WebSocket('ws://localhost:8001/ws/organism');
+
+    ws.onopen = () => {
+      set({ isConnected: true });
+      console.log('Connected to live metrics stream (Zustand)');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
         
-        const newVol = Math.max(0.2, state.accounts['531260945'].volatility + (Math.random() * 0.2 - 0.1));
-        const newDrawdown = Math.max(0, state.drawdown + (newEq < lastEq ? 0.05 : -0.05));
-        
-        return {
-          equity: newEq,
-          drawdown: newDrawdown,
-          equityHistory: [
-            ...state.equityHistory.slice(-50), // keep last 50 points
-            { equity: newEq, timestamp: new Date().toISOString() }
-          ],
-          accounts: {
-            ...state.accounts,
-            '531260945': {
-              ...state.accounts['531260945'],
-              volatility: newVol,
-              lastAction: trend > 0 ? (Math.random() > 0.5 ? 'LONG' : 'FLAT') : (Math.random() > 0.5 ? 'SHORT' : 'FLAT'),
-              accountStats: {
-                ...state.accounts['531260945'].accountStats,
-                net_pnl: newEq - 70000,
-                net_pnl_pct: ((newEq - 70000) / 70000) * 100
-              }
+        set((state) => {
+          const newMetrics = { ...state.metrics, ...data };
+          let newHistory = state.equityHistory;
+
+          if (data.equity && data.equity > 0) {
+            const now = new Date().toISOString();
+            const newPoint = { timestamp: data.timestamp || now, equity: data.equity };
+            newHistory = [...state.equityHistory, newPoint];
+            // Keep last 1000 points to prevent memory bloat
+            if (newHistory.length > 1000) {
+              newHistory = newHistory.slice(newHistory.length - 1000);
             }
           }
-        };
-      });
-    }, 2000); // update every 2 seconds
-  }
 
-  return {
-  accounts: {
-    '531260945': {
-      accountStats: {
-        balance: 70000,
-        currency: 'GBP',
-        net_pnl: 0,
-        net_pnl_pct: 0,
-        daily_summary: [
-          { date: '2026-04-13', trades: 5, lots: 2.5, result: 150.5 }
-        ]
-      },
-      positions: [
-        {
-          id: 'POS-1',
-          type: 'BUY',
-          openTime: '2026-04-13T10:00:00.000Z',
-          volume: 1.0,
-          symbol: 'EURGBP',
-          profit: 25.5,
-          pips: 5.2
-        }
-      ],
-      balance: 70000,
-      isSimulated: true,
-      isLive: false,
-      volatility: 1.0,
-      lastAction: 'LONG',
-    }
+          return { metrics: newMetrics, equityHistory: newHistory };
+        });
+      } catch (e) {
+        console.error('Error parsing metrics data', e);
+      }
+    };
+
+    ws.onclose = () => {
+      set({ isConnected: false });
+      ws = null;
+      console.log('Disconnected from live metrics stream. Reconnecting in 3s...');
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      reconnectTimeout = setTimeout(() => get().connect(), 3000);
+    };
+
+    ws.onerror = (err) => {
+      console.error('WebSocket error:', err);
+      if (ws) ws.close();
+    };
   },
-  equity: 70025.5,
-  equityHistory: [
-    { equity: 70000, timestamp: '2026-04-12T10:00:00.000Z' },
-    { equity: 70025.5, timestamp: '2026-04-13T11:00:00.000Z' }
-  ],
-  drawdown: 0.5,
-  };
-});
+
+  disconnect: () => {
+    if (reconnectTimeout) clearTimeout(reconnectTimeout);
+    if (ws) {
+      ws.close();
+      ws = null;
+    }
+    set({ isConnected: false });
+  }
+}));

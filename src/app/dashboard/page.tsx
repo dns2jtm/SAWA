@@ -1,69 +1,15 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Activity, TrendingUp, ShieldAlert, Zap, Wifi, WifiOff } from 'lucide-react';
 import EquityChart from './EquityChart';
+import { useTradingStore } from '@/store/useTradingStore';
 
 export default function DashboardOverview() {
-  const [metrics, setMetrics] = useState({
-    equity: 0,
-    drawdown: 0.0,
-    volatility: 0.0,
-    last_action: 'WAITING'
-  });
-  const [isConnected, setIsConnected] = useState(false);
-  const [equityHistory, setEquityHistory] = useState<{timestamp: string; equity: number}[]>([]);
+  const { metrics, isConnected, equityHistory, connect } = useTradingStore();
 
   useEffect(() => {
-    let ws: WebSocket;
-    let reconnectTimeout: NodeJS.Timeout;
-
-    const connect = () => {
-      // Connect to the FastAPI WebSocket backend for live organism metrics
-      ws = new WebSocket('ws://localhost:8001/ws/organism');
-
-      ws.onopen = () => {
-        setIsConnected(true);
-        console.log('Connected to live metrics stream');
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          setMetrics(prev => ({ ...prev, ...data }));
-          
-          if (data.equity && data.equity > 0) {
-            setEquityHistory(prev => {
-              const now = new Date().toISOString();
-              const updated = [...prev, { timestamp: data.timestamp || now, equity: data.equity }];
-              // Keep last 1000 points to prevent memory bloat
-              return updated.length > 1000 ? updated.slice(updated.length - 1000) : updated;
-            });
-          }
-        } catch (e) {
-          console.error('Error parsing metrics data', e);
-        }
-      };
-
-      ws.onclose = () => {
-        setIsConnected(false);
-        console.log('Disconnected from live metrics stream. Reconnecting...');
-        // Auto-reconnect after 3 seconds
-        reconnectTimeout = setTimeout(connect, 3000);
-      };
-
-      ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-        ws.close();
-      };
-    };
-
     connect();
-
-    return () => {
-      clearTimeout(reconnectTimeout);
-      if (ws) ws.close();
-    };
-  }, []);
+  }, [connect]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(val);
