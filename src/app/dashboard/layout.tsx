@@ -1,6 +1,7 @@
 "use client";
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { Activity, Cpu, Briefcase, FlaskConical, Settings, LogOut } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -11,11 +12,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="text-2xl font-black tracking-tight bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent mb-10">SAWA</div>
         <nav className="flex flex-col gap-2 h-full">
           {[
-            { href: '/dashboard', label: '📊 Overview' },
-            { href: '/dashboard/agents', label: '🤖 Active Agents' },
-            { href: '/dashboard/portfolio', label: '💼 Portfolio' },
-            { href: '/dashboard/strategy', label: '🔬 Strategy Lab' },
-            { href: '/dashboard/settings', label: '⚙️ Settings' },
+            { href: '/dashboard', label: 'Overview', icon: <Activity className="w-4 h-4" /> },
+            { href: '/dashboard/agents', label: 'Active Agents', icon: <Cpu className="w-4 h-4" /> },
+            { href: '/dashboard/portfolio', label: 'Portfolio', icon: <Briefcase className="w-4 h-4" /> },
+            { href: '/dashboard/strategy', label: 'Strategy Lab', icon: <FlaskConical className="w-4 h-4" /> },
+            { href: '/dashboard/settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
           ].map(link => (
             <Link 
               key={link.label}
@@ -24,6 +25,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 pathname === link.href ? 'bg-emerald-500/10 text-emerald-400' : 'text-slate-400 hover:bg-emerald-500/10 hover:text-emerald-400'
               }`}
             >
+              {link.icon}
               {link.label}
             </Link>
           ))}
@@ -35,7 +37,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             }}
             className="mt-auto flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-slate-400 hover:bg-emerald-500/10 hover:text-emerald-400 transition-colors text-left"
           >
-            🚪 Logout
+            <LogOut className="w-4 h-4" />
+            Logout
           </button>
         </nav>
       </aside>
