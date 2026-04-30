@@ -190,9 +190,32 @@ def download_ohlcv(
             return pd.DataFrame()
 
         raw.index  = pd.to_datetime(raw.index, utc=True)
-        raw.columns = [c.lower() for c in raw.columns]
+        # Dynamically map columns as LSEG may return varying names (e.g. BID, ASK, TRDPRC_1, CLOSE)
+        col_map = {}
+        for c in raw.columns:
+            cl = str(c).lower()
+            if "open" in cl:
+                col_map[c] = "open"
+            elif "high" in cl:
+                col_map[c] = "high"
+            elif "low" in cl:
+                col_map[c] = "low"
+            elif "close" in cl or "last" in cl or "prc" in cl or "bid" in cl: # Fallback to prc or bid if no close
+                if "close" not in col_map.values(): # Prefer close
+                    col_map[c] = "close"
+            elif "vol" in cl:
+                col_map[c] = "volume"
+        
+        raw.rename(columns=col_map, inplace=True)
+        
+        for req in ["open", "high", "low", "close"]:
+            if req not in raw.columns:
+                raw[req] = raw.get("close", np.nan) # Forward fill missing with what we have
+        if "volume" not in raw.columns:
+            raw["volume"] = 0.0
+
         df = raw[["open", "high", "low", "close", "volume"]].dropna(
-            subset=["open", "close"]
+            subset=["close"]
         )
         df.to_parquet(out_path)
         log.info(f"  ✅  {key}: {len(df):,} bars  →  {out_path.name}")
@@ -335,13 +358,13 @@ def download_calendar(
         raw, err = lib.get_data(
             universe   = ["ECOREL"],
             fields     = [
-                "TR.EcoRelDt",
-                "TR.EcoRelName",
-                "TR.EcoRelAct",
-                "TR.EcoRelFore",
-                "TR.EcoRelPrior",
-                "TR.EcoRelImp",
-                "TR.EcoRelCurr",
+                "TR.ECOREL_DT",
+                "TR.ECOREL_NAME",
+                "TR.ECOREL_ACT",
+                "TR.ECOREL_FORE",
+                "TR.ECOREL_PRIOR",
+                "TR.ECOREL_IMP",
+                "TR.ECOREL_CURR",
             ],
             parameters = {"SDate": start, "EDate": end},
         )
