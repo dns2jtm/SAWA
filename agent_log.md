@@ -163,3 +163,13 @@ train ≤ 2023-12-31, val = 2024, test = 2025→. No leakage.
 ### CI status
 All 4 CI steps now pass on synthetic data (no raw data files required in CI).
 Commits: `f36b91f` (regression tests), `a39ff4c` (CI fix).
+
+---
+
+## Session 4 — 2026-04-30
+
+### Findings
+Identified a silent bug where `data/features.py` checked for `"gold_vol"` natively, but `data/lseg_client.py` was assigning the VIX macro feed to the `"vix"` column. This resulted in `vix_proxy` silently skipping the real LSEG VIX overlay and falling back to trailing price volatility.
+
+### Files changed
+- `data/features.py` — corrected the `vix` column check overlay and updated logging message.

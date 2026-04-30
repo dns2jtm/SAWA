@@ -199,9 +199,9 @@ def _overlay_lseg_macro(df: pd.DataFrame) -> pd.DataFrame:
             df["real_yield_proxy"] = _zscore_h1(macro["real_yield"], idx)
             print("  [LSEG] real_yield_proxy  ← US 10Y TIPS (US10YTIP=RR)")
 
-        if "gold_vol" in macro.columns:
-            df["vix_proxy"] = _zscore_h1(macro["gold_vol"], idx)
-            print("  [LSEG] vix_proxy  ← real Gold Implied Volatility (XAU1MO=R)")
+        if "vix" in macro.columns:
+            df["vix_proxy"] = _zscore_h1(macro["vix"], idx)
+            print("  [LSEG] vix_proxy  ← real VIX (.VIX)")
 
     except Exception as exc:
         print(f"  [LSEG] macro overlay skipped: {exc}")
