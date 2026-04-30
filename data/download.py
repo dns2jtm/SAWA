@@ -390,6 +390,7 @@ if __name__ == "__main__":
     parser.add_argument("--workers", type=int, default=8,
                         help="Parallel download threads (default 8; max ~16)")
     parser.add_argument("--verify",  action="store_true")
+    parser.add_argument("--force",   action="store_true", help="Force cache overwrite")
     parser.add_argument("--lseg",    action="store_true",
                         help="Download LSEG OHLCV, macro, calendar and sentiment data")
     args = parser.parse_args()
@@ -405,10 +406,10 @@ if __name__ == "__main__":
                 print("  LSEG session unavailable — check credentials or lseg-data install")
                 _sys.exit(1)
             for tf in [t for t in args.tf if t in ("H1", "D")]:
-                download_ohlcv(args.symbol, tf, args.start, args.end)
-            download_macro(args.start, args.end)
-            download_calendar(args.start, args.end)
-            download_sentiment(args.start, args.end)
+                download_ohlcv(args.symbol, tf, args.start, args.end, force=args.force)
+            download_macro(args.start, args.end, force=args.force)
+            download_calendar(args.start, args.end, force=args.force)
+            download_sentiment(args.start, args.end, force=args.force)
             print("  LSEG download complete — caches saved to data/cache/")
         except ImportError:
             print("  data/lseg.py not found or lseg-data not installed.")

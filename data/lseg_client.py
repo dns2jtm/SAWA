@@ -168,9 +168,13 @@ def download_ohlcv(
 
     out_path = RAW_DIR / f"lseg_{symbol}_{tf}_{start[:4]}_{end[:4]}.parquet"
     if out_path.exists() and not force:
-        df = pd.read_parquet(out_path)
-        log.info(f"LSEG OHLCV  [{key}]  loaded from cache: {len(df):,} bars")
-        return df
+        try:
+            df = pd.read_parquet(out_path)
+            if not df.empty:
+                log.info(f"LSEG OHLCV  [{key}]  loaded from cache: {len(df):,} bars")
+                return df
+        except Exception:
+            pass
 
     if not open_session():
         return pd.DataFrame()
@@ -269,11 +273,15 @@ def download_macro(
     out_path = CACHE_DIR / f"lseg_macro_{start[:4]}_{end[:4]}.parquet"
 
     if out_path.exists() and not force:
-        df = pd.read_parquet(out_path)
-        if df.index.tzinfo is None:
-            df.index = df.index.tz_localize("UTC")
-        log.info(f"LSEG macro  loaded from cache: {len(df)} rows, {len(df.columns)} cols")
-        return df
+        try:
+            df = pd.read_parquet(out_path)
+            if not df.empty:
+                if df.index.tzinfo is None:
+                    df.index = df.index.tz_localize("UTC")
+                log.info(f"LSEG macro  loaded from cache: {len(df)} rows, {len(df.columns)} cols")
+                return df
+        except Exception:
+            pass
 
     if not open_session():
         return pd.DataFrame()
@@ -360,7 +368,12 @@ def download_calendar(
     fname    = f"lseg_calendar_{start[:10].replace('-','')}_{end[:10].replace('-','')}.parquet"
     out_path = CACHE_DIR / fname
     if out_path.exists() and not force:
-        return pd.read_parquet(out_path)
+        try:
+            df = pd.read_parquet(out_path)
+            if not df.empty:
+                return df
+        except Exception:
+            pass
 
     if not open_session():
         return pd.DataFrame()
@@ -405,7 +418,11 @@ def download_calendar(
         return raw
 
     except Exception as exc:
-        log.warning(f"LSEG calendar download error: {exc}")
+        msg = str(exc)
+        if "ECOREL" in msg or "resolve" in msg:
+            log.info("LSEG calendar ('ECOREL') not available on this tier. Falling back to ForexFactory/RSS.")
+        else:
+            log.warning(f"LSEG calendar download error: {exc}")
         return pd.DataFrame()
 
 
@@ -474,11 +491,15 @@ def download_sentiment(
     out_path = CACHE_DIR / fname
 
     if out_path.exists() and not force:
-        df = pd.read_parquet(out_path)
-        if df.index.tzinfo is None:
-            df.index = df.index.tz_localize("UTC")
-        log.info(f"LSEG sentiment  loaded from cache: {len(df):,} hourly rows")
-        return df
+        try:
+            df = pd.read_parquet(out_path)
+            if not df.empty:
+                if df.index.tzinfo is None:
+                    df.index = df.index.tz_localize("UTC")
+                log.info(f"LSEG sentiment  loaded from cache: {len(df):,} hourly rows")
+                return df
+        except Exception:
+            pass
 
     if not open_session():
         return pd.DataFrame()
