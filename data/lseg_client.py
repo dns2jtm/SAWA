@@ -203,12 +203,12 @@ def download_ohlcv(
         rename_dict = {}
         def _find(keywords, prioritize_mid=True):
             cols = list(raw.columns)
-            for k in keywords:
-                if k in cols: return k
             if prioritize_mid:
                 for k in keywords:
                     for c in cols:
                         if k in c and "mid" in c: return c
+            for k in keywords:
+                if k in cols: return k
             for k in keywords:
                 for c in cols:
                     if k in c: return c
