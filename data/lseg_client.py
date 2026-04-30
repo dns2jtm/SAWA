@@ -190,64 +190,41 @@ def download_ohlcv(
             return pd.DataFrame()
 
         raw.index  = pd.to_datetime(raw.index, utc=True)
-        # Dynamically map columns as LSEG may return varying names
-        col_map = {}
-        processed_reqs = set()
+        log.info(f"LSEG Raw columns: {list(raw.columns)}")
         
-        # 1. Exact matches first
+        # Flatten MultiIndex if necessary, and handle tuples
+        new_cols = []
+        parsed_set = set()
         for c in raw.columns:
             cl = str(c).lower()
-            if cl in ["open", "high", "low", "close", "volume"]:
-                col_map[c] = cl
-                processed_reqs.add(cl)
-                
-        # 2. Fallbacks for missing columns
-        for c in raw.columns:
-            if c in col_map: continue
-            cl = str(c).lower()
-            
-            if "open" in cl and "open" not in processed_reqs:
-                if "prc" in cl or "bid" in cl or "last" in cl or "open" == cl:
-                    col_map[c] = "open"
-                    processed_reqs.add("open")
-            elif "high" in cl and "high" not in processed_reqs:
-                if "prc" in cl or "bid" in cl or "last" in cl or "high" == cl:
-                    col_map[c] = "high"
-                    processed_reqs.add("high")
-            elif "low" in cl and "low" not in processed_reqs:
-                if "prc" in cl or "bid" in cl or "last" in cl or "low" == cl:
-                    col_map[c] = "low"
-                    processed_reqs.add("low")
-            elif ("close" in cl or "last" in cl or "prc" in cl or "bid" in cl) and "close" not in processed_reqs:
-                if "close" in cl or "last" in cl or "prc" in cl:
-                    col_map[c] = "close"
-                    processed_reqs.add("close")
-            elif "vol" in cl and "volume" not in processed_reqs:
-                col_map[c] = "volume"
-                processed_reqs.add("volume")
-
-        # If we still have missing columns but multiple columns contain the keyword
-        # we can just take the first one that contains the keyword
-        for req in ["open", "high", "low", "close", "volume"]:
-            if req not in processed_reqs:
-                for c in raw.columns:
-                    if c in col_map: continue
-                    cl = str(c).lower()
-                    if req in cl or (req == "volume" and "vol" in cl):
-                        col_map[c] = req
-                        processed_reqs.add(req)
-                        break
-
-        raw = raw.rename(columns=col_map)
+            if "open" in cl and "open" not in parsed_set: 
+                new_cols.append("open")
+                parsed_set.add("open")
+            elif "high" in cl and "high" not in parsed_set:
+                new_cols.append("high")
+                parsed_set.add("high")
+            elif "low" in cl and "low" not in parsed_set:
+                new_cols.append("low")
+                parsed_set.add("low")
+            elif ("close" in cl or "last" in cl or "prc" in cl) and "close" not in parsed_set:
+                new_cols.append("close")
+                parsed_set.add("close")
+            elif ("vol" in cl) and "volume" not in parsed_set:
+                new_cols.append("volume")
+                parsed_set.add("volume")
+            else:
+                new_cols.append(cl) # Keep whatever it was
         
-        # Handle duplicates if they somehow exist by keeping first
+        raw.columns = new_cols
+        
+        # Deduplicate columns if any (keep first)
         raw = raw.loc[:, ~raw.columns.duplicated()]
 
-        for req in ["open", "high", "low", "close"]:
-            if req not in raw.columns:
-                raw[req] = raw.get("close", np.nan) # Forward fill missing with what we have
-        if "volume" not in raw.columns:
-            raw["volume"] = 0.0
+        # Check standard fields
+        for col in ["open", "high", "low", "close", "volume"]:
+            if col not in raw.columns:
+                if col == "volume": raw["volume"] = 0.0
+                else: raw[col] = raw.get("close", np.nan) # Forward fill any missing OHL from close
 
         df = raw[["open", "high", "low", "close", "volume"]].dropna(
             subset=["close"]
