@@ -396,7 +396,7 @@ if __name__ == "__main__":
 
     if args.lseg:
         try:
-            from data.lseg import (
+            from data.lseg_client import (
                 open_session, download_ohlcv, download_macro,
                 download_calendar, download_sentiment,
             )

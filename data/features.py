@@ -175,7 +175,7 @@ def _overlay_lseg_macro(df: pd.DataFrame) -> pd.DataFrame:
     vix_proxy        ← LSEG VIX z-score   (was: hist_vol_20 z-score)
     """
     try:
-        from data.lseg import load_macro_cache
+        from data.lseg_client import load_macro_cache
         macro = load_macro_cache()
         if macro.empty:
             return df
@@ -224,7 +224,7 @@ def _overlay_lseg_sentiment(df: pd.DataFrame) -> pd.DataFrame:
     calendar_block      ← NOT replaced (live-only, set by CalendarFilter)
     """
     try:
-        from data.lseg import load_sentiment_cache
+        from data.lseg_client import load_sentiment_cache
         sent = load_sentiment_cache()
         if sent.empty:
             return df
@@ -256,7 +256,7 @@ def _add_minutes_to_news(df: pd.DataFrame) -> pd.DataFrame:
     """
     df["minutes_to_news"] = 0.0
     try:
-        from data.lseg import load_calendar_cache
+        from data.lseg_client import load_calendar_cache
         events_df = load_calendar_cache()
         if events_df.empty:
             return df

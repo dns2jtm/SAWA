@@ -133,7 +133,7 @@ def _fetch_lseg_calendar() -> list[EconomicEvent]:
     """
     events = []
     try:
-        from data.lseg import load_calendar_cache
+        from data.lseg_client import load_calendar_cache
         df = load_calendar_cache()
         if df.empty:
             return events

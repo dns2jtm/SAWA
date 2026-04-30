@@ -97,8 +97,8 @@ def open_session() -> bool:
         _SESSION_OPEN = True
         log.info("LSEG session opened")
         return True
-    except ImportError:
-        log.warning("lseg-data not installed.  Run: pip install lseg-data")
+    except ImportError as e:
+        log.warning(f"lseg-data not installed or missing dependency: {e}")
         return False
     except Exception as exc:
         log.warning(f"LSEG session failed (is Workspace running?): {exc}")
