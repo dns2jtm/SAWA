@@ -17,8 +17,6 @@ const totalSteps = 10000000;
 const evalFreq = 100000;
 
 function generateMetrics(currentStep: number) {
-  const phase = currentStep < 3000000 ? 1 : currentStep < 7000000 ? 2 : 3;
-  
   // Simulated organic improvement
   const progress = currentStep / totalSteps;
   

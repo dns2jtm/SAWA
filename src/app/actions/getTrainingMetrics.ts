@@ -32,7 +32,7 @@ export async function getTrainingMetrics() {
     if (!line) continue;
     try {
       metrics.push(JSON.parse(line));
-    } catch (e) {
+    } catch {
       console.error("Failed to parse log line:", line);
     }
   }

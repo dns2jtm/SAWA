@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import MetricsChart from './MetricsChart';
 import RegimeChart from './RegimeChart';
@@ -7,7 +7,18 @@ import { TrendingUp, TrendingDown, BarChart3, Zap, Layers, Trophy, Info, Chevron
 import { useTradingStore, type Position, type DailySummary } from '@/store/useTradingStore';
 import { getTrainingMetrics } from '@/app/actions/getTrainingMetrics';
 
-const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
+const Plot = dynamic(() => {
+  if (typeof window !== 'undefined') {
+    const d = Object.getOwnPropertyDescriptor(window, 'fetch');
+    if (d && !d.set) {
+      Object.defineProperty(window, 'fetch', {
+        ...d,
+        set: function() {}
+      });
+    }
+  }
+  return import('react-plotly.js');
+}, { ssr: false });
 const OrganismCanvas = dynamic(() => import('@/components/3d/OrganismCanvas'), { ssr: false });
 
 // ── Static FTMO challenge metadata ─────────────────────────────────────────
@@ -153,7 +164,6 @@ export default function Dashboard() {
     let ws: WebSocket | null = null;
     let mockInterval: ReturnType<typeof setInterval> | null = null;
     let destroyed = false;
-    let stepCount = 0;
     
     function connect() {
       if (destroyed) return;
@@ -194,13 +204,13 @@ export default function Dashboard() {
               };
               setMetrics(nd);
               
-              const historyData = rawLogs.slice(-100).map((log: any) => ({
+              const historyData = rawLogs.slice(-100).map((log: Partial<MetricsData>) => ({
                 ...log,
                 pass_rate_pct:    log.pass_rate_pct    ?? (log.pass_rate    ? log.pass_rate    * 100 : 0),
                 daily_breach_pct: log.daily_breach_pct ?? (log.daily_breach ? log.daily_breach * 100 : 0),
                 total_breach_pct: log.total_breach_pct ?? (log.total_breach ? log.total_breach * 100 : 0),
-                avg_pnl_pct:      log.avg_pnl_pct      ?? (log.avg_pnl      ? log.avg_pnl      * 100 : 0),
-              }));
+                avg_pnl_pct:      log.avg_pnl_pct      ?? (log.avg_pnl_pct  ? log.avg_pnl_pct  * 100 : 0),
+              })) as MetricsData[];
               setHistory(historyData);
             }
           } catch (e) {

@@ -4,7 +4,18 @@ import dynamic from 'next/dynamic';
 import type { Data, Layout } from 'plotly.js';
 
 // Dynamically import Plotly to avoid SSR "window is not defined" errors
-const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
+const Plot = dynamic(() => {
+  if (typeof window !== 'undefined') {
+    const d = Object.getOwnPropertyDescriptor(window, 'fetch');
+    if (d && !d.set) {
+      Object.defineProperty(window, 'fetch', {
+        ...d,
+        set: function() {}
+      });
+    }
+  }
+  return import('react-plotly.js');
+}, { ssr: false });
 
 type Metric = { step: number; pass_rate: number; avg_pnl_pct: number };
 

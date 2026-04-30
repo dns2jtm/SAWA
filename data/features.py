@@ -114,8 +114,8 @@ def _bollinger(close: pd.Series, period: int = 20, std: float = 2.0):
     return upper, lower, width, pct
 
 def _adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
-    up_move   = high.diff()
-    down_move = -low.diff()
+    up_move   = high.diff().fillna(0.0)
+    down_move = (-low.diff()).fillna(0.0)
     plus_dm   = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
     minus_dm  = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
 

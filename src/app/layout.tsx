@@ -16,25 +16,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if (typeof window !== 'undefined') {
-                var d = Object.getOwnPropertyDescriptor(window, 'fetch');
-                if (d && !d.set) {
-                  Object.defineProperty(window, 'fetch', {
-                    configurable: true,
-                    enumerable: d.enumerable,
-                    get: d.get,
-                    set: function() {} 
-                  });
-                }
-              }
-            `,
-          }}
-        />
-      </head>
       <body className={inter.className}>{children}</body>
     </html>
   );
