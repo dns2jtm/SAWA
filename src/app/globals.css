@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+:root {
+  --bg-color: #0a0e17;
+  --panel-bg: rgba(20, 25, 35, 0.6);
+  --accent-cyan: #00e1ff;
+  --accent-green: #00ff88;
+  --text-primary: #f0f4f8;
+  --text-secondary: #8a9fc2;
+  --glass-border: rgba(255, 255, 255, 0.05);
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.glass-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
+}
+
+/* Landing page legacy styles */
+.hero {
+  text-align: center;
+  padding: 6rem 2rem;
+}
+
+.hero h1 {
+  font-size: 3.5rem;
+  font-weight: 800;
+  margin-bottom: 1.5rem;
+}
+
+.hero p {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+  max-width: 42rem;
+  margin: 0 auto 2.5rem;
+}
+
+.btn-primary {
+  display: inline-block;
+  background: linear-gradient(to right, var(--accent-cyan), var(--accent-green));
+  color: #000;
+  font-weight: bold;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 255, 136, 0.2);
+}
+
+.hero-stats {
+  display: flex;
+  justify-content: center;
+  gap: 3rem;
+  margin-top: 4rem;
+}
+
+.stat-item h3 {
+  font-size: 2rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.stat-item p {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.grid {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  padding: 4rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.feature-card, .pricing-card {
+  padding: 2rem;
+  text-align: left;
+}
+
+.feature-card h3, .pricing-card h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.pricing-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.price {
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin: 1rem 0;
+}
+
+.pricing-card ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 2rem;
+  flex-grow: 1;
+}
+
+.pricing-card li {
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+}
+
+header nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: 900;
+  background: linear-gradient(to right, var(--accent-cyan), var(--accent-green));
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.nav-links {
+  display: flex;
+  gap: 2rem;
+}
+
+.nav-links a {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.nav-links a:hover {
+  color: var(--accent-cyan);
+}

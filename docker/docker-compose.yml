@@ -1,0 +1,100 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# FTMO Docker Compose
+# Services:
+#   trainer   — GPU PPO training (RunPod / local GPU)
+#   backtest  — Walk-forward backtest (profile: backtest)
+#   optimise  — Optuna HPO (profile: optimise)
+#   backend   — FastAPI dashboard API + WebSocket server (always-on)
+# ─────────────────────────────────────────────────────────────────────────────
+version: "3.9"
+
+services:
+
+  # ── PPO Training (GPU) ─────────────────────────────────────────────────────
+  trainer:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: ftmo-eurgbp:latest
+    container_name: ftmo-trainer
+    command: walkforward
+    env_file:
+      - ../.env
+    volumes:
+      - ../data/cache:/workspace/ftmo-eurgbp/data/cache
+      - ../models:/workspace/ftmo-eurgbp/models
+      - ../checkpoints:/workspace/ftmo-eurgbp/checkpoints
+      - ../runs:/workspace/ftmo-eurgbp/runs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: "no"
+
+  # ── Walk-Forward Backtest ──────────────────────────────────────────────────
+  backtest:
+    image: ftmo-eurgbp:latest
+    container_name: ftmo-backtest
+    command: backtest
+    env_file:
+      - ../.env
+    volumes:
+      - ../data/cache:/workspace/ftmo-eurgbp/data/cache
+      - ../models:/workspace/ftmo-eurgbp/models
+    restart: "no"
+    profiles: ["backtest"]
+
+  # ── Optuna HPO ────────────────────────────────────────────────────────────
+  optimise:
+    image: ftmo-eurgbp:latest
+    container_name: ftmo-optimise
+    command: optimise
+    env_file:
+      - ../.env
+    environment:
+      - N_TRIALS=200
+    volumes:
+      - ../data/cache:/workspace/ftmo-eurgbp/data/cache
+      - ../models:/workspace/ftmo-eurgbp/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: "no"
+    profiles: ["optimise"]
+
+  # ── FastAPI Dashboard Backend ─────────────────────────────────────────────
+  # Always-on service. Serves /ws/organism (10 Hz) and /ws/metrics.
+  # Falls back to GBM simulation when LIVE_MODE != 1.
+  # Set LIVE_MODE=1 once live cTrader data is pushing to /api/organism/push.
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    image: ftmo-api:latest
+    container_name: ftmo-backend
+    ports:
+      - "8001:8001"
+    env_file:
+      - ../.env
+    environment:
+      # LIVE_MODE=0  → GBM simulation runs (default / mock mode)
+      # LIVE_MODE=1  → simulation disabled; expects live cTrader pushes
+      - LIVE_MODE=0
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+    volumes:
+      - ../models/logs:/app/models/logs    # training callback writes JSONL here
+      - ../data/cache:/app/data/cache      # regime parquet files
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/debug/state"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

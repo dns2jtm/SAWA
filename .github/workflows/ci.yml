@@ -1,0 +1,138 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# FTMO-EURGBP CI Pipeline
+# Runs on every push to dev and on PRs to main
+# Tests: import checks, synthetic backtest, FTMO constraint validation
+# ─────────────────────────────────────────────────────────────────────────────
+name: CI — Synthetic Backtest
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          # Install CPU-only torch first (CI has no GPU)
+          pip install torch==2.2.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install stable-baselines3[extra]>=2.3.0 gymnasium>=0.29.0
+          pip install pandas numpy pandas-ta python-dotenv optuna scikit-learn tqdm
+
+      - name: Lint — check imports
+        run: |
+          python -c "from config.settings import FTMO, INSTRUMENT, RL, DATA"
+          python -c "from env.ftmo_env import FTMOEnv"
+          python -c "from data.features import FeaturePipeline"
+          python -m py_compile env/ftmo_env.py models/train.py models/backtest.py scripts/backtest.py scripts/optimise.py data/lseg.py data/features.py data/news_calendar.py
+          echo "✅ All imports and compile checks OK"
+
+      - name: Contract + regression unit tests
+        run: |
+          python tests/test_env_info_contract.py
+          python tests/test_env_regressions.py
+          echo "✅ All env regression tests passed"
+
+      - name: Validate FTMO environment (synthetic df)
+        run: |
+          python - <<'EOF'
+          import numpy as np
+          import pandas as pd
+          from env.ftmo_env import FTMOEnv
+
+          # Build minimal synthetic OHLCV df (env falls back to 0.0 for missing feature cols)
+          idx = pd.date_range("2020-01-01", periods=800, freq="h", tz="UTC")
+          df  = pd.DataFrame({
+              "datetime": idx,
+              "open":  2000.0 + np.random.randn(800).cumsum() * 0.5,
+              "high":  0.0, "low": 0.0, "close": 0.0, "volume": 1000.0,
+          })
+          df["close"] = df["open"] + np.random.randn(800) * 0.2
+          df["high"]  = df[["open","close"]].max(axis=1) + abs(np.random.randn(800)) * 0.1
+          df["low"]   = df[["open","close"]].min(axis=1) - abs(np.random.randn(800)) * 0.1
+
+          env    = FTMOEnv(df, training=True, random_start=False)
+          obs, _ = env.reset(seed=42)
+          assert obs.shape == (77,), f"Obs shape mismatch: {obs.shape}"
+
+          total_r = 0.0
+          for _ in range(200):
+              action = env.action_space.sample()
+              obs, r, term, trunc, info = env.step(action)
+              total_r += r
+              if term or trunc:
+                  obs, _ = env.reset()
+
+          required = {"equity", "daily_pnl", "daily_dd_breach", "total_dd_breach",
+                      "challenge_passed", "n_trades", "trading_days", "max_dd_pct"}
+          missing  = required - info.keys()
+          assert not missing, f"Missing info keys: {missing}"
+          print(f"✅ Environment: 200 steps OK | obs shape={obs.shape} | info keys present")
+          EOF
+
+      - name: Synthetic PPO training smoke test (2000 steps)
+        run: |
+          python - <<'EOF'
+          import os
+          os.environ["WANDB_MODE"] = "disabled"
+
+          import numpy as np
+          import pandas as pd
+          from stable_baselines3 import PPO
+          from stable_baselines3.common.env_util import make_vec_env
+          from env.ftmo_env import FTMOEnv
+
+          idx = pd.date_range("2015-01-01", periods=2000, freq="h", tz="UTC")
+          df  = pd.DataFrame({
+              "datetime": idx,
+              "open":  2000.0 + np.random.randn(2000).cumsum() * 0.5,
+              "high":  0.0, "low": 0.0, "close": 0.0, "volume": 1000.0,
+          })
+          df["close"] = df["open"] + np.random.randn(2000) * 0.2
+          df["high"]  = df[["open","close"]].max(axis=1) + abs(np.random.randn(2000)) * 0.1
+          df["low"]   = df[["open","close"]].min(axis=1) - abs(np.random.randn(2000)) * 0.1
+
+          env   = make_vec_env(lambda: FTMOEnv(df, training=True), n_envs=1)
+          model = PPO("MlpPolicy", env, verbose=0, n_steps=64, batch_size=32, device="cpu")
+          model.learn(total_timesteps=2_000)
+          print("✅ PPO smoke test: 2000 training steps completed")
+
+          # Deterministic eval episode
+          eval_env   = FTMOEnv(df, training=False, random_start=False, use_calendar=False)
+          obs, _     = eval_env.reset(seed=0)
+          done, info = False, {}
+          steps      = 0
+          while not done and steps < 500:
+              action, _ = model.predict(obs.astype("float32"), deterministic=True)
+              obs, _, term, trunc, info = eval_env.step(action)
+              done = term or trunc
+              steps += 1
+
+          assert info.get("max_dd_pct", 1.0) < 1.0, "Total DD sanity check failed"
+          print(f"✅ Eval: {steps} steps | max_dd_pct={info.get('max_dd_pct', 0):.2%} | trades={info.get('n_trades', 0)}")
+          print("✅ FTMO constraint sanity: PASS")
+          EOF
+
+      - name: Post CI summary
+        if: always()
+        run: |
+          echo "### CI Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Import + compile checks" >> $GITHUB_STEP_SUMMARY
+          echo "- Contract + regression unit tests" >> $GITHUB_STEP_SUMMARY
+          echo "- FTMO environment validation (synthetic df)" >> $GITHUB_STEP_SUMMARY
+          echo "- PPO synthetic smoke test" >> $GITHUB_STEP_SUMMARY

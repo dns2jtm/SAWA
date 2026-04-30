@@ -1,0 +1,56 @@
+# Core RL
+stable-baselines3[extra]>=2.3.0
+gymnasium>=0.29.0
+torch>=2.2.0
+
+# Data
+pandas>=2.2.0
+numpy>=1.26.0
+pyarrow>=15.0.0
+requests>=2.31.0
+tqdm>=4.66.0
+scikit-learn>=1.3.0
+
+# Technical indicators — all implemented natively (pure numpy/pandas)
+# No external TA library required; pandas-ta removed (was unused)
+
+# Broker APIs
+oandapyV20>=0.7.2          # OANDA REST API (backup data source)
+
+# Environment
+python-dotenv>=1.0.0
+
+# Data Visualization & Dashboard Backend
+matplotlib>=3.8.0
+seaborn>=0.13.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+websockets>=12.0
+
+# Live market data
+yfinance>=0.2.40           # used by stream_market_data() in web/backend/main.py
+
+# cTrader Open API (replaces MetaAPI / MT5)
+# Protocol buffers (wire format for cTrader OpenAPI 2.0)
+protobuf>=4.21.0           # Protobuf runtime
+grpcio-tools>=1.59.0       # Ships protoc as `python -m grpc_tools.protoc`
+twisted>=24.3.0            # cTrader Open API uses Twisted for async IO
+autobahn>=23.6.2           # Twisted WebSocket layer used by OpenApipy
+# ctrader-open-api>=2.0.0  # Uncomment once cTrader transition is complete
+
+# Async HTTP (dashboard push from execution/live.py)
+httpx>=0.27.0
+
+# Schema validation
+pydantic>=2.6.0
+
+# Optional — LSEG Workspace data integration
+lseg-data>=1.0.0          # pip install lseg-data  (requires Workspace desktop)
+vaderSentiment>=3.3.2     # pip install vaderSentiment  (improves news scoring)
+
+# Optional — for faster training
+# ta-lib                   # C extension — requires: brew install ta-lib
+
+# Dev / monitoring
+tensorboard>=2.16.0
+scipy>=1.13.0

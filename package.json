@@ -1,0 +1,31 @@
+{
+  "name": "web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000 -H 0.0.0.0",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.2.4",
+    "lucide-react": "^1.14.0",
+    "next": "16.2.4",
+    "plotly.js": "^3.5.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-plotly.js": "^2.6.0",
+    "tailwindcss": "^4.2.4",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/react-plotly.js": "^2.6.4",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.4",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,57 @@
+# Python artefacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Git
+.git/
+.gitignore
+
+# Build
+dist/
+build/
+
+# Secrets — never bake into image
+.env
+.env.*
+secrets/
+keys/
+
+# Raw & cached data (mounted as volumes at runtime)
+data/raw/
+data/cache/
+data/features/
+
+# Model weights (mounted as volumes at runtime)
+models/best/
+models/eval/
+models/checkpoints/
+models/logs/
+
+# Large workspace files
+Archive.zip
+repomix-output.xml
+pyright_output.txt
+*.archive
+*.log
+*.csv
+*.zip
+
+# Node.js frontend (not needed in Python API image)
+web/node_modules/
+web/.next/
+web/out/
+
+# Proto compiled files (regenerated at build time)
+proto/*_pb2.py
+proto/*_pb2_grpc.py
+
+# Test & dev scripts (not needed in production image)
+tests/
+scripts/
+docker/
+
+# CI
+.github/
