@@ -36,7 +36,7 @@ protobuf>=4.21.0           # Protobuf runtime
 grpcio-tools>=1.59.0       # Ships protoc as `python -m grpc_tools.protoc`
 twisted>=24.3.0            # cTrader Open API uses Twisted for async IO
 autobahn>=23.6.2           # Twisted WebSocket layer used by OpenApipy
-# ctrader-open-api>=2.0.0  # Uncomment once cTrader transition is complete
+ctrader-open-api>=2.0.0
 
 # Async HTTP (dashboard push from execution/live.py)
 httpx>=0.27.0

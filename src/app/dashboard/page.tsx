@@ -1,10 +1,11 @@
 "use client";
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import MetricsChart from './MetricsChart';
 import RegimeChart from './RegimeChart';
 import { TrendingUp, TrendingDown, BarChart3, Zap, Layers, Trophy, Info, ChevronDown, ChevronRight } from "lucide-react";
 import { useTradingStore, type Position, type DailySummary } from '@/store/useTradingStore';
+import { getTrainingMetrics } from '@/app/actions/getTrainingMetrics';
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
 const OrganismCanvas = dynamic(() => import('@/components/3d/OrganismCanvas'), { ssr: false });
@@ -176,39 +177,42 @@ export default function Dashboard() {
       // Fallback for simulation if backend is offline
       ws.onclose = () => {
         ws = null;
-        console.warn("WS closed, starting local mock simulation...");
-        // Start simulated metrics if backend is unavailable
-        mockInterval = setInterval(() => {
-          if (destroyed) { if (mockInterval) clearInterval(mockInterval); return; }
-          stepCount += 100000;
-          const progress = Math.min(1, stepCount / 10000000);
-          const mockData = {
-            step: stepCount,
-            pass_rate: 0.1 + progress * 0.7 + (Math.random() * 0.05),
-            daily_breach: Math.max(0.05, 0.4 - progress * 0.3),
-            total_breach: Math.max(0.05, 0.3 - progress * 0.2),
-            avg_pnl: -0.05 + progress * 0.2 + (Math.random() * 0.01),
-            avg_trades: 15 + Math.random() * 5,
-            avg_days: 25 - progress * 5 + Math.random(),
-            active_episode_fraction: 0.95 + Math.random() * 0.05,
-            sharpe: -1.0 + progress * 3.0 + (Math.random() * 0.2),
-            n_episodes: 200
-          };
-          
-          const nd = {
-            ...mockData,
-            pass_rate_pct: mockData.pass_rate * 100,
-            daily_breach_pct: mockData.daily_breach * 100,
-            total_breach_pct: Math.min(100, mockData.total_breach * 100),
-            avg_pnl_pct: mockData.avg_pnl * 100,
-          };
-          
-          setMetrics(nd);
-          setHistory(prev => { const n = [...prev, nd]; return n.length > 100 ? n.slice(n.length - 100) : n; });
-        }, 1500);
+        console.warn("WS closed, starting local file polling fallback...");
+        // Start polling local log files via Server Action
+        
+        async function fetchLogs() {
+          if (destroyed) return;
+          try {
+            const rawLogs = await getTrainingMetrics();
+            if (rawLogs && rawLogs.length > 0) {
+              const nd = {
+                ...rawLogs[rawLogs.length - 1],
+                pass_rate_pct:    rawLogs[rawLogs.length - 1].pass_rate_pct    ?? (rawLogs[rawLogs.length - 1].pass_rate    ? rawLogs[rawLogs.length - 1].pass_rate    * 100 : 0),
+                daily_breach_pct: rawLogs[rawLogs.length - 1].daily_breach_pct ?? (rawLogs[rawLogs.length - 1].daily_breach ? rawLogs[rawLogs.length - 1].daily_breach * 100 : 0),
+                total_breach_pct: rawLogs[rawLogs.length - 1].total_breach_pct ?? (rawLogs[rawLogs.length - 1].total_breach ? rawLogs[rawLogs.length - 1].total_breach * 100 : 0),
+                avg_pnl_pct:      rawLogs[rawLogs.length - 1].avg_pnl_pct      ?? (rawLogs[rawLogs.length - 1].avg_pnl      ? rawLogs[rawLogs.length - 1].avg_pnl      * 100 : 0),
+              };
+              setMetrics(nd);
+              
+              const historyData = rawLogs.slice(-100).map((log: any) => ({
+                ...log,
+                pass_rate_pct:    log.pass_rate_pct    ?? (log.pass_rate    ? log.pass_rate    * 100 : 0),
+                daily_breach_pct: log.daily_breach_pct ?? (log.daily_breach ? log.daily_breach * 100 : 0),
+                total_breach_pct: log.total_breach_pct ?? (log.total_breach ? log.total_breach * 100 : 0),
+                avg_pnl_pct:      log.avg_pnl_pct      ?? (log.avg_pnl      ? log.avg_pnl      * 100 : 0),
+              }));
+              setHistory(historyData);
+            }
+          } catch (e) {
+            console.error("Failed to fetch local stats:", e);
+          }
+        }
+        
+        void fetchLogs(); // Fetch immediately once
+        mockInterval = setInterval(fetchLogs, 5000); // And then every 5 seconds
 
         if (!destroyed) { 
-           // Disable retry loop so we stay in mock mode
+           // Disable retry loop so we stay in file-polling mode
         }
       };
       ws.onerror = () => ws?.close();

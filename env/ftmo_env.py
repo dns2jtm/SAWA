@@ -159,8 +159,10 @@ class FTMOEnv(gym.Env):
         self.balance         = self.initial_balance
 
         # Constraint thresholds (personal limits — conservative vs FTMO hard limits)
-        self.max_daily_loss  = self.initial_balance * self.cfg["personal_daily_limit"]
-        self.max_total_loss  = self.initial_balance * self.cfg["personal_total_limit"]
+        self.ftmo_max_daily_loss = self.initial_balance * self.cfg["max_daily_loss_pct"]
+        self.ftmo_max_total_loss = self.initial_balance * self.cfg["max_total_loss_pct"]
+        self.personal_daily_loss = self.initial_balance * self.cfg["personal_daily_limit"]
+        self.personal_total_loss = self.initial_balance * self.cfg["personal_total_limit"]
         self.profit_target   = self.initial_balance * self.cfg["profit_target_pct"]
         self.risk_per_trade  = self.initial_balance * self.cfg["risk_per_trade_pct"]
         self.min_days        = self.cfg["min_trading_days"]
@@ -313,7 +315,16 @@ class FTMOEnv(gym.Env):
         # close any open position and block further trades for the day.
         # This is the primary mechanism preventing daily breach spiralling.
         _current_daily_dd = max(0.0, -self.daily_pnl)
-        if _current_daily_dd >= self.max_daily_loss * self.daily_cutout_frac:
+        if _current_daily_dd >= self.personal_daily_loss * self.daily_cutout_frac:
+            block_trades = True
+            if self.position != 0:
+                close_now = True
+
+        # ── Daily Target Cutout ────────────────────────────────────────────
+        # If today's profit reaches the prop firm daily target pacing, block
+        # further trades. Prevents overtrading once daily goal is hit.
+        daily_target = self.initial_balance * self.cfg.get("daily_target_pct", 1.0)
+        if self.daily_pnl >= daily_target:
             block_trades = True
             if self.position != 0:
                 close_now = True
@@ -380,11 +391,10 @@ class FTMOEnv(gym.Env):
                 self.trade_count  += 1
                 self._entry_step  = self.current_step
 
-                # Set hard Stop-Loss (1.5x ATR, matching the sizing risk logic)
+                # Set hard Stop-Loss (1.5x ATR, capped between $10 and $150)
                 atr_norm = float(row.get("atr_14", 0.01))
                 atr_usd  = max(atr_norm * price, 1.0)
-                # Tighten SL to 1.0x ATR for better protection in high-vol periods
-                stop_usd = max(5.0, min(atr_usd * 1.0, 100.0))
+                stop_usd = max(10.0, min(atr_usd * 1.5, 150.0))
                 self.stop_loss_price = price - (desired_pos * stop_usd)
 
         # ── Mark-to-market ─────────────────────────────────────────────────
@@ -451,8 +461,8 @@ class FTMOEnv(gym.Env):
 
         # Exponential penalty for DD usage > 30% (lowered from 50% for earlier warning)
         # This creates much stronger gradient pressure as we approach limits
-        daily_dd_ratio = daily_dd / (self.max_daily_loss + 1e-9)
-        total_dd_ratio = total_dd / (self.max_total_loss + 1e-9)
+        daily_dd_ratio = daily_dd / (self.personal_daily_loss + 1e-9)
+        total_dd_ratio = total_dd / (self.personal_total_loss + 1e-9)
 
         if daily_dd_ratio > 0.3:
             p = (np.exp(4.0 * (daily_dd_ratio - 0.3)) - 1.0) * self.lambda_daily_dd
@@ -484,19 +494,19 @@ class FTMOEnv(gym.Env):
         terminated  = False
         truncated   = False
 
-        if daily_dd >= self.max_daily_loss:
+        if daily_dd >= self.ftmo_max_daily_loss:
             terminated          = True
             self._breach_daily  = True
             reward    -= self.lambda_daily_dd * 10
             if self.verbose >= 1:
-                print(f"  💀 Daily DD breach: £{daily_dd:,.2f} > £{self.max_daily_loss:,.2f}")
+                print(f"  💀 Daily DD breach: £{daily_dd:,.2f} > £{self.ftmo_max_daily_loss:,.2f}")
 
-        if total_dd >= self.max_total_loss:
+        if total_dd >= self.ftmo_max_total_loss:
             terminated          = True
             self._breach_total  = True
             reward    -= self.lambda_total_dd * 10
             if self.verbose >= 1:
-                print(f"  💀 Total DD breach: £{total_dd:,.2f} > £{self.max_total_loss:,.2f}")
+                print(f"  💀 Total DD breach: £{total_dd:,.2f} > £{self.ftmo_max_total_loss:,.2f}")
 
         if self.total_pnl >= self.profit_target and self.days_traded >= self.min_days:
             terminated = True
@@ -634,8 +644,8 @@ class FTMOEnv(gym.Env):
             self.daily_pnl / self.initial_balance,
             self.total_pnl / self.initial_balance,
             self.total_pnl / (self.profit_target + 1e-9),
-            -min(self.daily_pnl, 0) / (self.max_daily_loss + 1e-9),
-            -min(self.total_pnl, 0) / (self.max_total_loss + 1e-9),
+            -min(self.daily_pnl, 0) / (self.personal_daily_loss + 1e-9),
+            -min(self.total_pnl, 0) / (self.personal_total_loss + 1e-9),
             self.days_traded / max(self.min_days, 1),
             self.trades_today / max(self.cfg.get("max_trades_per_day", 3), 1),
 
@@ -673,8 +683,10 @@ class FTMOEnv(gym.Env):
             "total_dd_breach":   self._breach_total,
             "max_dd_pct":        self.max_dd_pct,
             "profit_target":     self.profit_target,
-            "max_daily_loss":    self.max_daily_loss,
-            "max_total_loss":    self.max_total_loss,
+            "max_daily_loss":    self.ftmo_max_daily_loss,
+            "max_total_loss":    self.ftmo_max_total_loss,
+            "personal_daily_loss": self.personal_daily_loss,
+            "personal_total_loss": self.personal_total_loss,
             "calendar_blocked":  self.calendar_blocked,
             "firm":              self.firm_key,
             "trade_closed":      self._trade_closed,

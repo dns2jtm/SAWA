@@ -56,14 +56,14 @@ export default function MetricsChart({ history }: { history: Metric[] }) {
       zeroline: false,
     },
     yaxis: {
-      title: 'Pass Rate (%)',
+      title: { text: 'Pass Rate (%)' },
       showgrid: true,
       gridcolor: 'rgba(255, 255, 255, 0.05)',
       zeroline: false,
       range: [0, 100],
     },
     yaxis2: {
-      title: 'Avg PnL (%)',
+      title: { text: 'Avg PnL (%)' },
       overlaying: 'y',
       side: 'right',
       showgrid: false,
