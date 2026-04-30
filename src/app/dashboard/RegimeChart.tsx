@@ -2,18 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 
-const Plot = dynamic(() => {
-  if (typeof window !== 'undefined') {
-    const d = Object.getOwnPropertyDescriptor(window, 'fetch');
-    if (d && !d.set) {
-      Object.defineProperty(window, 'fetch', {
-        ...d,
-        set: function() {}
-      });
-    }
-  }
-  return import('react-plotly.js');
-}, { ssr: false });
+import Plot from '@/components/PlotComponent';
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
 const POLL_MS = 5 * 60 * 1000;   // refresh every 5 minutes

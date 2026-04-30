@@ -570,7 +570,7 @@ class FeaturePipeline:
         missing = [c for c in self.OBS_COLUMNS if c not in df.columns]
         if missing:
             raise ValueError(f"Missing feature columns: {missing}")
-        X = df[self.OBS_COLUMNS].values.astype(np.float32)
+        X = df[self.OBS_COLUMNS].astype('float64').values.astype(np.float32)
         X = np.nan_to_num(X, nan=0.0, posinf=1.0, neginf=-1.0)
         return X
 

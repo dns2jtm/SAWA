@@ -7,18 +7,7 @@ import { TrendingUp, TrendingDown, BarChart3, Zap, Layers, Trophy, Info, Chevron
 import { useTradingStore, type Position, type DailySummary } from '@/store/useTradingStore';
 import { getTrainingMetrics } from '@/app/actions/getTrainingMetrics';
 
-const Plot = dynamic(() => {
-  if (typeof window !== 'undefined') {
-    const d = Object.getOwnPropertyDescriptor(window, 'fetch');
-    if (d && !d.set) {
-      Object.defineProperty(window, 'fetch', {
-        ...d,
-        set: function() {}
-      });
-    }
-  }
-  return import('react-plotly.js');
-}, { ssr: false });
+import Plot from '@/components/PlotComponent';
 const OrganismCanvas = dynamic(() => import('@/components/3d/OrganismCanvas'), { ssr: false });
 
 // ── Static FTMO challenge metadata ─────────────────────────────────────────
