@@ -197,29 +197,36 @@ def download_ohlcv(
         log.info(f"LSEG Raw columns: {list(raw.columns)}")
         
         # Flatten MultiIndex if necessary, and handle tuples
-        new_cols = []
-        parsed_set = set()
-        for c in raw.columns:
-            cl = str(c).lower()
-            if "open" in cl and "open" not in parsed_set: 
-                new_cols.append("open")
-                parsed_set.add("open")
-            elif "high" in cl and "high" not in parsed_set:
-                new_cols.append("high")
-                parsed_set.add("high")
-            elif "low" in cl and "low" not in parsed_set:
-                new_cols.append("low")
-                parsed_set.add("low")
-            elif ("close" in cl or "last" in cl or "prc" in cl) and "close" not in parsed_set:
-                new_cols.append("close")
-                parsed_set.add("close")
-            elif ("vol" in cl) and "volume" not in parsed_set:
-                new_cols.append("volume")
-                parsed_set.add("volume")
-            else:
-                new_cols.append(cl) # Keep whatever it was
+        raw.columns = [str(c).lower() for c in raw.columns]
         
-        raw.columns = new_cols
+        # Robustly map varying LSEG column names to standard indicator names
+        rename_dict = {}
+        def _find(keywords, prioritize_mid=True):
+            cols = list(raw.columns)
+            for k in keywords:
+                if k in cols: return k
+            if prioritize_mid:
+                for k in keywords:
+                    for c in cols:
+                        if k in c and "mid" in c: return c
+            for k in keywords:
+                for c in cols:
+                    if k in c: return c
+            return None
+            
+        c_open = _find(["open"])
+        c_high = _find(["high"])
+        c_low  = _find(["low"])
+        c_close = _find(["close", "price", "prc", "last", "bid", "ask"])
+        c_vol  = _find(["volume", "vol"])
+        
+        if c_open: rename_dict[c_open] = "open"
+        if c_high: rename_dict[c_high] = "high"
+        if c_low: rename_dict[c_low] = "low"
+        if c_close: rename_dict[c_close] = "close"
+        if c_vol: rename_dict[c_vol] = "volume"
+        
+        raw.rename(columns=rename_dict, inplace=True)
         
         # Deduplicate columns if any (keep first)
         raw = raw.loc[:, ~raw.columns.duplicated()]
