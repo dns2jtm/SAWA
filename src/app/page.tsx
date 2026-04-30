@@ -34,7 +34,7 @@ export default function Home() {
           
           <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-[1.1]">
             Institutional RL Trading, <br />
-            <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent glow-text">
               Now Fully Autonomous.
             </span>
           </h1>
@@ -65,11 +65,12 @@ export default function Home() {
             ))}
           </div>
 
-          <div className="mt-24 w-full max-w-5xl rounded-2xl border border-white/10 bg-[#141923]/60 backdrop-blur-md p-4 shadow-[0_20px_80px_rgba(0,0,0,0.8)]">
-            <div className="rounded-xl overflow-hidden bg-black relative aspect-[16/9] flex items-center justify-center border border-white/5">
-              <div className="text-center">
-                <Activity className="w-12 h-12 text-cyan-400 mx-auto mb-4 animate-pulse opacity-50" />
-                <p className="text-slate-500 font-mono text-sm">Systematic Dashboards Initialize After Login</p>
+          <div className="mt-24 w-full max-w-5xl rounded-2xl border border-white/10 border-t-white/20 bg-[#141923]/60 backdrop-blur-xl p-4 shadow-[0_30px_100px_rgba(0,0,0,0.9)] animate-float">
+            <div className="rounded-xl overflow-hidden bg-black/80 relative aspect-[16/9] flex items-center justify-center border border-white/5 shadow-inner">
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,225,255,0.05)_0%,transparent_70%)]" />
+              <div className="text-center z-10">
+                <Activity className="w-12 h-12 text-cyan-400 mx-auto mb-4 animate-pulse opacity-70 drop-shadow-[0_0_15px_rgba(0,225,255,0.5)]" />
+                <p className="text-slate-400 font-mono text-sm tracking-widest uppercase">Systematic Dashboards Initialize After Login</p>
               </div>
             </div>
           </div>
