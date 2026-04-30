@@ -397,11 +397,11 @@ if __name__ == "__main__":
     if args.lseg:
         try:
             from data.lseg import (
-                ensure_session, download_ohlcv, download_macro,
+                open_session, download_ohlcv, download_macro,
                 download_calendar, download_sentiment,
             )
             print("\nLSEG Workspace download starting...")
-            if not ensure_session():
+            if not open_session():
                 print("  LSEG session unavailable — check credentials or lseg-data install")
                 _sys.exit(1)
             download_ohlcv(args.symbol, args.start, args.end)

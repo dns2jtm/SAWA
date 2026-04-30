@@ -604,9 +604,9 @@ if __name__ == "__main__":
 
     # Auto-discover parquet files
     if args.auto or not args.h1:
-        h1_files = list(RAW_DIR.glob("XAUUSD_H1_*.parquet"))
-        h4_files = list(RAW_DIR.glob("XAUUSD_H4_*.parquet"))
-        d_files  = list(RAW_DIR.glob("XAUUSD_D_*.parquet"))
+        h1_files = list(RAW_DIR.glob("*XAUUSD_H1_*.parquet"))
+        h4_files = list(RAW_DIR.glob("*XAUUSD_H4_*.parquet"))
+        d_files  = list(RAW_DIR.glob("*XAUUSD_D_*.parquet"))
         if not h1_files:
             print("No H1 data found. Run: python data/download.py first")
             raise SystemExit(1)
