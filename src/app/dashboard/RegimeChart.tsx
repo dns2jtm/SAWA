@@ -1,6 +1,5 @@
 "use client";
 import React, { useEffect, useState } from 'react';
-import dynamic from 'next/dynamic';
 
 import Plot from '@/components/PlotComponent';
 

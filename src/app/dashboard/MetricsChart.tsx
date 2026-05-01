@@ -1,6 +1,5 @@
 "use client";
 import React from 'react';
-import dynamic from 'next/dynamic';
 import type { Data, Layout } from 'plotly.js';
 
 // Dynamically import Plotly to avoid SSR "window is not defined" errors
