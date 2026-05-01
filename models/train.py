@@ -146,10 +146,10 @@ def load_data(split: str = "train") -> pd.DataFrame:
         df_full.index = df_full.index.tz_localize("UTC")
     df_full = df_full.sort_index()
 
-    # Chronological 80/10/10 split by bar count
+    # Chronological 95/2.5/2.5 split by bar count
     n        = len(df_full)
-    i_val    = int(n * 0.80)
-    i_test   = int(n * 0.90)
+    i_val    = int(n * 0.95)
+    i_test   = int(n * 0.975)
 
     splits = {
         "train": df_full.iloc[:i_val],
