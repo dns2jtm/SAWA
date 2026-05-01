@@ -28,12 +28,8 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // Refresh session if expired
-  // IMPORTANT: DO NOT run code between createServerClient and supabase.auth.getUser() 
-  // that modifies response before session refresh
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Local Mock validation bypass:
+  const user = request.cookies.get('sawa_auth_token');
 
   const isLoginPage = request.nextUrl.pathname === '/login'
   const isDashboardPage = request.nextUrl.pathname.startsWith('/dashboard')
