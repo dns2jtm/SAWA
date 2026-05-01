@@ -178,11 +178,17 @@ def download_dukascopy_h1(symbol: str, start: str, end: str,
     end_dt   = datetime.strptime(end,   "%Y-%m-%d").replace(tzinfo=timezone.utc)
 
     if out_path is None:
-        out_path = RAW_DIR / f"{symbol}_H1_{start}_{end}.parquet"
+        # Check if we already have a file for this symbol and start date
+        existing_files = list(RAW_DIR.glob(f"{symbol}_H1_{start}_*.parquet"))
+        if existing_files:
+            # Use the most recently created file to resume from
+            out_path = sorted(existing_files)[-1]
+        else:
+            out_path = RAW_DIR / f"{symbol}_H1_{start}_{end}.parquet"
 
     # Resume: load existing data if partial download exists
     existing = pd.DataFrame()
-    if out_path.exists():
+    if out_path and out_path.exists():
         try:
             existing = pd.read_parquet(out_path)
             if not existing.empty:

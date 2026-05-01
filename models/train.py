@@ -306,11 +306,12 @@ class FTMOMetricsCallback(BaseCallback):
       - Active episode fraction
       - Sharpe ratio of episode returns
     """
-    def __init__(self, eval_freq: int = 100_000, verbose: int = 1):
+    def __init__(self, eval_freq: int = 10_000, verbose: int = 1):
         super().__init__(verbose)
         self.eval_freq = eval_freq
         self._episodes = []
         self._log_path = LOGS_DIR / f"ftmo_metrics_{RUN_ID}.jsonl"
+        self._last_nerd_stats = {}
 
     def _metric(self, info, key, default=0.0):
         val = info.get(key, default)
@@ -381,8 +382,71 @@ class FTMOMetricsCallback(BaseCallback):
                 "n_episodes": n,
             }
 
+            # Attempt to pull internal SB3 logger metrics (nerd stats) if available
+            try:
+                import time
+                if not hasattr(self, "_start_time"):
+                    self._start_time = time.time()
+                    self._start_step = self.num_timesteps
+                
+                # Manual stable fallbacks for critical live metrics that SB3 clears too fast
+                elapsed = time.time() - self._start_time
+                self._last_nerd_stats["time/fps"] = round((self.num_timesteps - self._start_step) / max(1e-4, elapsed), 1)
+                self._last_nerd_stats["time/iterations"] = getattr(self.model, "_n_updates", 0)
+                self._last_nerd_stats["time/time_elapsed"] = round(elapsed, 1)
+                self._last_nerd_stats["time/total_timesteps"] = self.num_timesteps
+                
+                if hasattr(self.model, "ep_info_buffer") and len(self.model.ep_info_buffer) > 0:
+                    self._last_nerd_stats["rollout/ep_len_mean"] = float(np.mean([ep["l"] for ep in self.model.ep_info_buffer]))
+                    self._last_nerd_stats["rollout/ep_rew_mean"] = float(np.mean([ep["r"] for ep in self.model.ep_info_buffer]))
+
+                if self.logger:
+                    keys = [
+                        "train/approx_kl", "train/clip_fraction", "train/clip_range",
+                        "train/entropy_loss", "train/explained_variance", "train/learning_rate",
+                        "train/loss", "train/n_updates", "train/policy_gradient_loss",
+                        "train/std", "train/value_loss"
+                    ]
+                    for k in keys:
+                        v = self.logger.name_to_value.get(k)
+                        if v is not None:
+                            self._last_nerd_stats[k] = float(v)
+                            
+                metrics["nerd_stats"] = {
+                    "fps": self._last_nerd_stats.get("time/fps", 0.0),
+                    "iterations": self._last_nerd_stats.get("time/iterations", 0.0),
+                    "time_elapsed": self._last_nerd_stats.get("time/time_elapsed", 0.0),
+                    "total_timesteps": self._last_nerd_stats.get("time/total_timesteps", 0.0),
+                    "ep_len_mean": self._last_nerd_stats.get("rollout/ep_len_mean", 0.0),
+                    "ep_rew_mean": self._last_nerd_stats.get("rollout/ep_rew_mean", 0.0),
+                    "approx_kl": self._last_nerd_stats.get("train/approx_kl", 0.0),
+                    "clip_fraction": self._last_nerd_stats.get("train/clip_fraction", 0.0),
+                    "clip_range": self._last_nerd_stats.get("train/clip_range", 0.0),
+                    "entropy_loss": self._last_nerd_stats.get("train/entropy_loss", 0.0),
+                    "explained_variance": self._last_nerd_stats.get("train/explained_variance", 0.0),
+                    "learning_rate": self._last_nerd_stats.get("train/learning_rate", 0.0),
+                    "loss": self._last_nerd_stats.get("train/loss", 0.0),
+                    "n_updates": self._last_nerd_stats.get("train/n_updates", 0.0),
+                    "policy_gradient_loss": self._last_nerd_stats.get("train/policy_gradient_loss", 0.0),
+                    "std": self._last_nerd_stats.get("train/std", 0.0),
+                    "value_loss": self._last_nerd_stats.get("train/value_loss", 0.0),
+                }
+            except Exception as e:
+                pass
+
             with open(self._log_path, "a") as f:
                 f.write(json.dumps(metrics) + "\n")
+
+            try:
+                import requests
+                requests.post("http://127.0.0.1:8001/api/organism/push", json={
+                    "equity": 70000 * (1 + avg_pnl),
+                    "drawdown": total_breach * 10,
+                    "volatility": float(np.std(pnl_values) if len(pnl_values) else 0),
+                    "last_action": f"TRAIN_STEP_{self.num_timesteps}"
+                }, timeout=0.5)
+            except Exception:
+                pass
 
             if self.verbose >= 1:
                 target_pct = FTMO["profit_target_pct"] * 100
@@ -607,8 +671,12 @@ def train(phase_start: int   = 1,
         resume_path = resume_model
         print(f"  Resuming from explicit path: {resume_path.name}")
     elif resume:
-        # Fall back to latest checkpoint
-        ckpts = sorted(CKPT_DIR.glob("ppo_xauusd_*.zip"))
+        import re
+        def extract_step(path):
+            match = re.search(r"(\d+)_steps\.zip$", path.name)
+            return int(match.group(1)) if match else 0
+            
+        ckpts = sorted(CKPT_DIR.glob("ppo_xauusd_*_steps.zip"), key=extract_step)
         if ckpts:
             resume_path = ckpts[-1]
             print(f"  Resuming from latest checkpoint: {resume_path.name}")
@@ -644,7 +712,8 @@ def train(phase_start: int   = 1,
     )
 
     curriculum_cb  = CurriculumCallback(phase_start=phase_start)
-    ftmo_metrics_cb = FTMOMetricsCallback(eval_freq=100_000)
+    # Output metrics more frequently for UI tracking (every 2,000 steps instead of 100_000)
+    ftmo_metrics_cb = FTMOMetricsCallback(eval_freq=2_000)
 
     callbacks = CallbackList([
         checkpoint_cb,
@@ -655,16 +724,30 @@ def train(phase_start: int   = 1,
 
     # ── Train ─────────────────────────────────────────────────────────────────
     print(f"  Starting training...\n")
-    try:
-        model.learn(
-            total_timesteps  = total_timesteps,
-            callback         = callbacks,
-            tb_log_name      = f"ppo_xauusd_phase{phase_start}_{RUN_ID}",
-            reset_num_timesteps = not resume,
-            progress_bar     = True,
-        )
-    except KeyboardInterrupt:
-        print("\n  Training interrupted — saving checkpoint...")
+    while True:
+        try:
+            model.learn(
+                total_timesteps  = total_timesteps,
+                callback         = callbacks,
+                tb_log_name      = f"ppo_xauusd_phase{phase_start}_{RUN_ID}",
+                reset_num_timesteps = not resume,
+                progress_bar     = True,
+            )
+            break
+        except KeyboardInterrupt:
+            # Note: in a headless environment like nohup, input() will raise EOFError
+            # so we catch that too and just save/exit if headless.
+            try:
+                ans = input("\n  ⚠️ KeyboardInterrupt detected. Are you sure you want to stop training? (y/n): ")
+                if ans.lower().strip() == 'y':
+                    print("\n  Training terminated by user — saving checkpoint...")
+                    break
+                else:
+                    print("  Resuming training...")
+                    resume = True
+            except EOFError:
+                print("\n  Training interrupted (headless) — saving checkpoint...")
+                break
 
     # ── Save final model ──────────────────────────────────────────────────────
     final_path = MODELS_DIR / f"ppo_xauusd_final_{RUN_ID}.zip"

@@ -17,25 +17,36 @@ export async function getTrainingMetrics() {
     return [];
   }
 
-  // Get the most recently created (or modified) file
-  const latestFile = metricsFiles
+  // Sort files chronologically so we can merge all training runs
+  const sortedFiles = metricsFiles
     .map(name => ({ name, time: fs.statSync(path.join(logsDir, name)).mtime.getTime() }))
-    .sort((a, b) => b.time - a.time)[0].name;
+    .sort((a, b) => a.time - b.time); // Oldest to newest
 
-  const filePath = path.join(logsDir, latestFile);
-  const fileContent = fs.readFileSync(filePath, 'utf-8');
-  
-  const lines = fileContent.trim().split('\n');
   const metrics = [];
+  const seenSteps = new Set();
   
-  for (const line of lines) {
-    if (!line) continue;
-    try {
-      metrics.push(JSON.parse(line));
-    } catch {
-      console.error("Failed to parse log line:", line);
+  for (const fileObj of sortedFiles) {
+    const filePath = path.join(logsDir, fileObj.name);
+    const fileContent = fs.readFileSync(filePath, 'utf-8');
+    const lines = fileContent.trim().split('\n');
+    
+    for (const line of lines) {
+      if (!line) continue;
+      try {
+        const parsed = JSON.parse(line);
+        // Only add if we haven't seen this exact step (handles overlaps during resume)
+        if (parsed.step !== undefined && !seenSteps.has(parsed.step)) {
+          seenSteps.add(parsed.step);
+          metrics.push(parsed);
+        }
+      } catch {
+        console.error("Failed to parse log line:", line);
+      }
     }
   }
+
+  // Ensure they are strictly sorted by step
+  metrics.sort((a, b) => a.step - b.step);
 
   return metrics;
 }

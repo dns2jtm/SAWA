@@ -77,3 +77,5 @@ web/node_modules/
 web/.next/
 web/.env.local
 web/out/
+node_modules
+.next/
