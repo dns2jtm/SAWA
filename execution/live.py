@@ -81,13 +81,15 @@ DASHBOARD_PUSH_URL = os.getenv("DASHBOARD_URL", "http://localhost:8001") + "/api
 
 
 def _push_to_dashboard(equity: float, drawdown: float,
-                       volatility: float, action: str) -> None:
+                       volatility: float, action: str,
+                       timestamp: str = None) -> None:
     """Fire-and-forget POST to /api/organism/push. Silently fails if backend is down."""
     body = json.dumps({
         "equity":      round(float(equity),              2),
         "drawdown":    round(float(max(drawdown, 0.0)),   4),
         "volatility":  round(float(np.clip(volatility, 0.1, 8.0)), 4),
         "last_action": action,
+        "timestamp":   timestamp,
     }).encode()
     req = urllib.request.Request(
         DASHBOARD_PUSH_URL, data=body,
@@ -256,7 +258,7 @@ class BarFeeder:
     def _load_warmup(self) -> pd.DataFrame:
         """Load last 300 H1 bars from stored feature cache for indicator warmup."""
         features_dir = DATA["features_dir"]
-        candidates = sorted(features_dir.glob("XAUUSD_H1_*_features.parquet"), reverse=True)
+        candidates = sorted(features_dir.glob("XAUUSD_H1_features.parquet"), reverse=True)
         if not candidates:
             raise RuntimeError(
                 "No feature cache found. Run: python data/features.py --auto"
@@ -1075,7 +1077,8 @@ class LiveTrader:
         _vol      = float(np.clip(self.bar_feeder.latest_atr / max(_avg_atr, 1e-9), 0.5, 3.0))
         _pos      = self.executor._current_position
         _action   = "LONG" if _pos > 0 else ("SHORT" if _pos < 0 else "FLAT")
-        _push_to_dashboard(equity, _dd_pct, _vol, _action)
+        _ts_str   = str(self._last_bar) if self._last_bar else datetime.now(timezone.utc).isoformat()
+        _push_to_dashboard(equity, _dd_pct, _vol, _action, _ts_str)
 
     async def run(self):
         """Main async loop."""
@@ -1104,7 +1107,8 @@ class LiveTrader:
 
             if self._running:
                 # Dry-run replays as fast as possible; live waits for next bar
-                await asyncio.sleep(0 if self.dry_run else self.CHECK_INTERVAL)
+                # Set to 0.5s in dry-run to prevent websocket from overloading the dashboard UI
+                await asyncio.sleep(0.5 if self.dry_run else self.CHECK_INTERVAL)
 
         log.info("LiveTrader stopped")
 

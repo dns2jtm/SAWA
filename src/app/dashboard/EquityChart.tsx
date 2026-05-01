@@ -20,13 +20,12 @@ export default function EquityChart({ history }: { history: EquityPoint[] }) {
     );
   }
 
-  const times = history.map(h => h.timestamp);
-  const equities = history.map(h => h.equity);
-
-  const plotData: Data[] = [
+  // Memoize data to prevent react-plotly from aggressively unmounting/remounting
+  // on every single tick, which causes severe flickering/glitching.
+  const plotData: Data[] = React.useMemo(() => [
     {
-      x: times,
-      y: equities,
+      x: history.map(h => h.timestamp),
+      y: history.map(h => h.equity),
       type: 'scatter',
       mode: 'lines',
       name: 'Equity',
@@ -34,10 +33,11 @@ export default function EquityChart({ history }: { history: EquityPoint[] }) {
       fill: 'tozeroy',
       fillcolor: 'rgba(0, 225, 255, 0.1)',
     }
-  ];
+  ], [history]);
 
-  const plotLayout: Partial<Layout> = {
+  const plotLayout: Partial<Layout> = React.useMemo(() => ({
     autosize: true,
+    datarevision: history.length,  // Crucial for efficient partial redraws
     margin: { l: 60, r: 20, t: 10, b: 40 },
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
@@ -56,13 +56,14 @@ export default function EquityChart({ history }: { history: EquityPoint[] }) {
       tickprefix: '£',
     },
     hovermode: 'x unified',
-  };
+  }), [history.length]);
 
   return (
     <div className="w-full h-full min-h-[300px]">
       <Plot
         data={plotData}
         layout={plotLayout}
+        revision={history.length}
         useResizeHandler={true}
         style={{ width: '100%', height: '100%' }}
         config={{ displayModeBar: false, responsive: true }}

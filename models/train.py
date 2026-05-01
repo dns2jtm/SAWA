@@ -84,7 +84,7 @@ CURRICULUM = {
     1: {
         "name":             "warm_up",
         "description":      "Learn buy/sell/hold mechanics with mild DD cost signal",
-        "step_end":         3_000_000,   # Phase 1 runs steps 0 – 3M
+        "step_end":         500_000,   # Compressed for rapid tuning
         "lambda_daily_dd":  0.020,       # Raised: 0.001→0.020 so penalty is meaningful
         "lambda_total_dd":  0.030,
         "lambda_target":    0.50,
@@ -95,7 +95,7 @@ CURRICULUM = {
     2: {
         "name":             "constraint_drill",
         "description":      "Enforce FTMO drawdown rules with strong penalty",
-        "step_end":         7_000_000,   # Phase 2 runs steps 3M – 7M
+        "step_end":         1_200_000,   # Compressed for rapid tuning
         "lambda_daily_dd":  0.080,       # 4× Phase-1 — daily breach is seriously costly
         "lambda_total_dd":  0.100,
         "lambda_target":    0.50,
@@ -106,7 +106,7 @@ CURRICULUM = {
     3: {
         "name":             "target_drill",
         "description":      "Drive toward profit target; maintain discipline",
-        "step_end":         10_000_000,  # Phase 3 runs steps 7M – 10M
+        "step_end":         2_000_000,  # Compressed for rapid tuning
         "lambda_daily_dd":  0.150,       # Hold the discipline learned in Phase 2
         "lambda_total_dd":  0.150,
         "lambda_target":    1.00,        # Strong pull toward 10% target

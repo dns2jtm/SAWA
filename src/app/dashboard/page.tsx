@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useState, useMemo } from 'react';
-import { Activity, BarChart, ChevronLeft, ChevronRight, Info, Wifi, WifiOff } from 'lucide-react';
+import { Activity, BarChart, ChevronLeft, ChevronRight, Info, Wifi, WifiOff, Zap } from 'lucide-react';
 import MetricsChart from './MetricsChart';
+import EquityChart from './EquityChart';
 import { useTradingStore } from '@/store/useTradingStore';
 
 import { getTrainingMetrics } from '@/app/actions/getTrainingMetrics';
 
 export default function DashboardOverview() {
-  const { isConnected, connect } = useTradingStore();
+  const { isConnected, connect, equityHistory, metrics, chartRevision } = useTradingStore();
   const [trainingMetrics, setTrainingMetrics] = useState<any[]>([]);
   const [showNerdStats, setShowNerdStats] = useState(true);
   const [activePhase, setActivePhase] = useState(1);
@@ -330,6 +331,73 @@ export default function DashboardOverview() {
             )}
           </div>
         </div>
+        
+        {/* Execution Pipeline Block */}
+        <div className="glass-panel p-6 min-h-[500px] flex flex-col relative overflow-hidden shadow-2xl">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              <Activity className="w-6 h-6 text-cyan-400" />
+              Live Execution Pipeline
+            </h3>
+            <div className="px-3 py-1 bg-cyan-500/10 text-cyan-400 text-xs font-bold uppercase tracking-wider rounded-full border border-cyan-500/20 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
+              Paper Trading Active
+            </div>
+          </div>
+          
+          {/* Live Organism Component */}
+          <div className="flex flex-col gap-6 h-full">
+            {/* Live Metrics Row */}
+            {isConnected && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+                <div className="bg-black/40 p-4 rounded-xl border border-cyan-500/20 relative overflow-hidden group">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Live Equity</p>
+                  <p className="text-2xl font-black text-cyan-400">£{metrics.equity > 0 ? metrics.equity.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '---'}</p>
+                </div>
+                <div className="bg-black/40 p-4 rounded-xl border border-white/5 relative overflow-hidden group">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Live Drawdown</p>
+                  <p className="text-2xl font-black text-rose-400">{metrics.drawdown > 0 ? `${metrics.drawdown.toFixed(2)}%` : '0.00%'}</p>
+                </div>
+                <div className="bg-black/40 p-4 rounded-xl border border-white/5 relative overflow-hidden group">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Market Volatility</p>
+                  <p className="text-2xl font-black text-white">{metrics.volatility > 0 ? `${metrics.volatility.toFixed(2)}x` : '---'}</p>
+                </div>
+                <div className="bg-black/40 p-4 rounded-xl border border-white/5 relative overflow-hidden group">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Last Action</p>
+                  <p className={`text-2xl font-black ${
+                    metrics.last_action.includes('LONG') || metrics.last_action.includes('BUY') ? 'text-emerald-400' :
+                    metrics.last_action.includes('SHORT') || metrics.last_action.includes('SELL') ? 'text-rose-400' :
+                    'text-slate-300'
+                  }`}>
+                    {metrics.last_action}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Live Chart */}
+            <div className="flex-1 w-full bg-black/20 rounded-xl border border-white/5 pt-4 flex flex-col items-center justify-center min-h-[350px]">
+              {isConnected ? (
+              <div className="w-full h-full">
+                {equityHistory.length > 0 ? (
+                  <EquityChart history={equityHistory} revision={chartRevision} />
+                ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-center">
+                      <Activity className="w-12 h-12 text-cyan-400/50 mb-4 animate-pulse" />
+                      <p className="text-slate-400 font-mono text-lg">Waiting for first execution event...</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center text-slate-500 min-h-[300px]">
+                  <WifiOff className="w-8 h-8 mb-4 opacity-50" />
+                  <p>Websocket disconnected. Start paper trading to connect.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );

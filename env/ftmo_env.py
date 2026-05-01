@@ -336,7 +336,7 @@ class FTMOEnv(gym.Env):
 
         # ── Interpret action ───────────────────────────────────────────────
         act_val       = float(action[0])
-        desired_pos   = self._action_to_position(act_val, block_trades)
+        desired_pos   = self._action_to_position(act_val, block_trades, self.direction)
 
         # ── Execute trade ──────────────────────────────────────────────────
         # desired_pos: direction signal (-1, 0, +1)
@@ -459,18 +459,11 @@ class FTMOEnv(gym.Env):
         daily_dd  = max(0.0, -worst_daily_pnl)
         total_dd  = max(0.0, self.initial_balance - worst_equity)
 
-        # Exponential penalty for DD usage > 30% (lowered from 50% for earlier warning)
-        # This creates much stronger gradient pressure as we approach limits
+        # DD usage metrics (terminal penalty uses these, but we removed the continuous
+        # exponential penalty because it caused agents to blow up accounts intentionally
+        # to escape the per-step penalty bleed).
         daily_dd_ratio = daily_dd / (self.personal_daily_loss + 1e-9)
         total_dd_ratio = total_dd / (self.personal_total_loss + 1e-9)
-
-        if daily_dd_ratio > 0.3:
-            p = (np.exp(4.0 * (daily_dd_ratio - 0.3)) - 1.0) * self.lambda_daily_dd
-            reward -= p
-
-        if total_dd_ratio > 0.3:
-            p = (np.exp(4.0 * (total_dd_ratio - 0.3)) - 1.0) * self.lambda_total_dd
-            reward -= p
 
         # ── Profit target bonus ────────────────────────────────────────────
         if self.total_pnl >= self.profit_target and not self._target_bonus_awarded:
@@ -482,13 +475,14 @@ class FTMOEnv(gym.Env):
         # ── Session reward shaping ─────────────────────────────────────────
         if self.position != 0:
             if SESSION_UTC["overlap"][0] <= hour < SESSION_UTC["overlap"][1]:
-                reward *= 1.20   # London/NY overlap — best conditions
+                reward = reward * 1.20 if reward > 0 else reward
             elif SESSION_UTC["london"][0] <= hour < SESSION_UTC["london"][1]:
-                reward *= 1.10   # London session
+                reward = reward * 1.10 if reward > 0 else reward
             elif SESSION_UTC["new_york"][0] <= hour < SESSION_UTC["new_york"][1]:
-                reward *= 1.05   # NY session
+                reward = reward * 1.05 if reward > 0 else reward
             else:
-                reward *= 0.80   # Asian session — penalise holding
+                # Asian session — penalise holding
+                reward = reward * 0.80 if reward > 0 else reward * 1.20
 
         # ── Termination conditions ─────────────────────────────────────────
         terminated  = False
@@ -546,14 +540,28 @@ class FTMOEnv(gym.Env):
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    def _action_to_position(self, action: float, blocked: bool) -> float:
+    def _action_to_position(self, action: float, blocked: bool, current_dir: int) -> float:
         if blocked:
             return 0.0
-        if action > FLAT_ZONE:
+        
+        # Hysteresis to prevent noise-induced closing/whipsawing
+        # If flat, require strong signal (> 0.5) to enter
+        # If open, require signal to drop near 0 (< 0.1) to close
+        entry_thresh = 0.50
+        exit_thresh  = 0.10
+
+        if current_dir == 1:
+            if action < -entry_thresh: return -1.0
+            if action < exit_thresh:   return 0.0
             return 1.0
-        elif action < -FLAT_ZONE:
+        elif current_dir == -1:
+            if action > entry_thresh:  return 1.0
+            if action > -exit_thresh:  return 0.0
             return -1.0
-        return 0.0
+        else:
+            if action > entry_thresh:  return 1.0
+            if action < -entry_thresh: return -1.0
+            return 0.0
 
     def _compute_lot_size(self, price: float) -> float:
         """ATR-based position sizing with volatility-regime scaling.

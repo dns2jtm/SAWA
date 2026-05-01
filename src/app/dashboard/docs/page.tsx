@@ -10,7 +10,7 @@ export default function DocsPage() {
       </Link>
       
       <h1 className="text-4xl font-black text-white mb-2 tracking-tight">Metrics Documentation</h1>
-      <p className="text-slate-500 mb-12">In-depth explanations of the RL training pipeline metrics.</p>
+      <p className="text-slate-500 mb-12">In-depth explanations of the RL training pipeline metrics and dashboard components.</p>
 
       <div className="space-y-12">
         <section id="latest-step" className="scroll-mt-24">
@@ -48,32 +48,127 @@ export default function DocsPage() {
         <section id="total-breach" className="scroll-mt-24">
           <h2 className="text-2xl font-bold text-rose-400 mb-3">Total Breach</h2>
           <p className="leading-relaxed">
-            The percentage of episodes where the agent lost enough money to violate the maximum total drawdown rule 
-            (e.g., losing 10% of the initial balance).
+            The percentage of episodes where the agent lost enough money to violate the maximum total drawdown rule.
           </p>
         </section>
         
         <section id="daily-breach" className="scroll-mt-24">
           <h2 className="text-2xl font-bold text-orange-400 mb-3">Daily Breach</h2>
           <p className="leading-relaxed">
-            The percentage of episodes where the agent violated the maximum daily drawdown rule 
-            (e.g., losing 5% of the starting daily equity within a single 24-hour period).
+            The percentage of episodes where the agent violated the maximum daily drawdown rule within a single 24-hour period.
           </p>
         </section>
         
         <section id="std" className="scroll-mt-24">
           <h2 className="text-2xl font-bold text-rose-400 mb-3">Train / Std Dev</h2>
           <p className="leading-relaxed">
-            The standard deviation of the continuous action distribution. When an RL agent first starts learning, it explores 
-            the environment randomly, which is represented by a high `std`. As it discovers profitable strategies, it becomes 
-            more confident and deterministic, and the `std` should mathematically collapse towards 0.
+            The standard deviation of the action distribution. High initial exploration (`std`) reduces as the agent learns.
           </p>
         </section>
-        
-        {/* Additional sections can be built out here */}
-        <section className="p-6 bg-blue-500/10 border border-blue-500/20 rounded-xl mt-8">
-          <h3 className="text-blue-400 font-bold mb-2">More metrics coming soon</h3>
-          <p className="text-sm text-blue-400/80">Additional deep learning statistics (KL divergence, Entropy Loss, etc.) will be documented here shortly.</p>
+
+        <section id="equity-chart" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-white mb-3">EquityChart</h2>
+          <p className="leading-relaxed">
+            Renders the portfolio equity curve over time, showing performance across episodes.
+          </p>
+        </section>
+
+        <section id="metrics-chart" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-white mb-3">MetricsChart</h2>
+          <p className="leading-relaxed">
+            Displays FTMO training metrics including pass rates, average PnL, daily and total breach percentages.
+          </p>
+        </section>
+
+        <section id="regime-chart" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-white mb-3">RegimeChart</h2>
+          <p className="leading-relaxed">
+            Shows market regime classification (e.g., bull, bear) across the training period.
+          </p>
+        </section>
+
+        <section id="agents-page" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-white mb-3">Agents Page</h2>
+          <p className="leading-relaxed">
+            Lists all active trading agents and their current training or evaluation status.
+          </p>
+        </section>
+
+        <section id="portfolio-page" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-white mb-3">Portfolio Page</h2>
+          <p className="leading-relaxed">
+            Summarizes portfolio allocation and performance statistics for selected assets.
+          </p>
+        </section>
+
+        <section id="strategy-page" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-white mb-3">Strategy Page</h2>
+          <p className="leading-relaxed">
+            Details backtested strategies, their parameters, and performance comparisons.
+          </p>
+        </section>
+
+        <section id="settings-page" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-white mb-3">Settings Page</h2>
+          <p className="leading-relaxed">
+            Provides dashboard configuration options, environment variables, and feature toggles.
+          </p>
+        </section>
+
+        <section id="kl-divergence" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-white mb-3">KL Divergence</h2>
+          <p className="leading-relaxed">
+            Measures how much the current policy distribution diverges from the previous policy, indicating the extent of policy updates each training step.
+          </p>
+        </section>
+
+        <section id="entropy-loss" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-white mb-3">Entropy Loss</h2>
+          <p className="leading-relaxed">
+            Quantifies the randomness of the policy’s action selection; higher entropy encourages exploration, and decreasing entropy signals convergence toward deterministic actions.
+          </p>
+        </section>
+
+        <section id="value-loss" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-white mb-3">Value Loss</h2>
+          <p className="leading-relaxed">
+            The loss between predicted value estimates and actual discounted returns; lower value loss indicates more accurate state-value predictions.
+          </p>
+        </section>
+
+        <section id="final-pnl-pct" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-emerald-400 mb-3">Final PnL (%)</h2>
+          <p className="leading-relaxed">
+            The percentage change in account equity at the end of an episode, calculated as (final equity – initial equity) / initial equity * 100.
+          </p>
+        </section>
+
+        <section id="total-episodes" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-white mb-3">Total Episodes</h2>
+          <p className="leading-relaxed">
+            The total number of completed training episodes in the current run, where each episode resets environment state.
+          </p>
+        </section>
+
+        <section id="active-episode-fraction" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-white mb-3">Active Episode Fraction</h2>
+          <p className="leading-relaxed">
+            The ratio of episodes in which the agent has taken at least one action versus total episodes, indicating exploration engagement.
+          </p>
+        </section>
+
+        <section id="avg-trades" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-white mb-3">Average Trades</h2>
+          <p className="leading-relaxed">
+            The mean number of trades executed per episode, reflecting trading activity level.
+          </p>
+        </section>
+
+        <section id="trading-days" className="scroll-mt-24">
+          <h2 className="text-2xl font-bold text-white mb-3">Trading Days</h2>
+          <p className="leading-relaxed">
+            The average number of days each episode spans, based on market calendar days, indicating episode duration.
+          </p>
         </section>
       </div>
     </div>

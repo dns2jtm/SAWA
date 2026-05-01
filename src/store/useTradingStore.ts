@@ -16,6 +16,7 @@ interface TradingStoreState {
   isConnected: boolean;
   metrics: OrganismMetrics;
   equityHistory: EquityPoint[];
+  chartRevision: number;
   connect: () => void;
   disconnect: () => void;
 }
@@ -32,6 +33,7 @@ export const useTradingStore = create<TradingStoreState>((set, get) => ({
     last_action: 'WAITING'
   },
   equityHistory: [],
+  chartRevision: 0,
 
   connect: () => {
     if (typeof window === 'undefined') return;
@@ -52,17 +54,29 @@ export const useTradingStore = create<TradingStoreState>((set, get) => ({
           const newMetrics = { ...state.metrics, ...data };
           let newHistory = state.equityHistory;
 
+          let newRevision = state.chartRevision;
+
           if (data.equity && data.equity > 0) {
             const now = new Date().toISOString();
             const newPoint = { timestamp: data.timestamp || now, equity: data.equity };
-            newHistory = [...state.equityHistory, newPoint];
-            // Keep last 1000 points to prevent memory bloat
-            if (newHistory.length > 1000) {
-              newHistory = newHistory.slice(newHistory.length - 1000);
+            
+            // If timestamp matches the last point, update it instead of adding a duplicate
+            // This prevents Plotly from drawing vertical glitch lines for identical timestamps
+            if (state.equityHistory.length > 0 && state.equityHistory[state.equityHistory.length - 1].timestamp === newPoint.timestamp) {
+              newHistory = [...state.equityHistory];
+              newHistory[newHistory.length - 1] = newPoint;
+              newRevision += 1;
+            } else {
+              newHistory = [...state.equityHistory, newPoint];
+              newRevision += 1;
+              // Keep last 1000 points to prevent memory bloat
+              if (newHistory.length > 1000) {
+                newHistory = newHistory.slice(newHistory.length - 1000);
+              }
             }
           }
 
-          return { metrics: newMetrics, equityHistory: newHistory };
+          return { metrics: newMetrics, equityHistory: newHistory, chartRevision: newRevision };
         });
       } catch (e) {
         console.error('Error parsing metrics data', e);
