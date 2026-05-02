@@ -10,10 +10,12 @@ using Stable-Baselines3. The agent learns to:
   5. Respect the economic calendar
 
 Training regime:
-  Phase 1 — Warm-up         (0-3M steps):   Low penalty, learn basic trading mechanics
-  Phase 2 — Constraint drill (3-7M steps):  Ramp up DD penalties, teach survival
-  Phase 3 — Target drill     (7-10M steps): Target reward scaled up, push for profit
+  Phase 1 — Warm-up         (0-2M steps):   Low penalty, learn basic trading mechanics
+  Phase 2 — Constraint drill (2-5M steps):  Ramp up DD penalties, teach survival
+  Phase 3 — Target drill     (5-15M steps): Gradual target reward + ramped DD penalties
   Curriculum advances automatically at fixed step thresholds.
+  Within Phase 3, penalties ramp linearly so the agent explores profit before
+  full discipline locks in (avoiding local minima).
 
 Usage:
   python models/train.py                        # full train from scratch
@@ -84,7 +86,7 @@ CURRICULUM = {
     1: {
         "name":             "warm_up",
         "description":      "Learn buy/sell/hold mechanics with mild DD cost signal",
-        "step_end":         500_000,   # Compressed for rapid tuning
+        "step_end":         2_000_000,   # Extended: more time to learn data patterns
         "lambda_daily_dd":  0.020,       # Raised: 0.001→0.020 so penalty is meaningful
         "lambda_total_dd":  0.030,
         "lambda_target":    0.50,
@@ -95,7 +97,7 @@ CURRICULUM = {
     2: {
         "name":             "constraint_drill",
         "description":      "Enforce FTMO drawdown rules with strong penalty",
-        "step_end":         1_200_000,   # Compressed for rapid tuning
+        "step_end":         5_000_000,   # Extended: solidify survival behaviour
         "lambda_daily_dd":  0.080,       # 4× Phase-1 — daily breach is seriously costly
         "lambda_total_dd":  0.100,
         "lambda_target":    0.50,
@@ -106,14 +108,25 @@ CURRICULUM = {
     3: {
         "name":             "target_drill",
         "description":      "Drive toward profit target; maintain discipline",
-        "step_end":         2_000_000,  # Compressed for rapid tuning
-        "lambda_daily_dd":  0.150,       # Hold the discipline learned in Phase 2
-        "lambda_total_dd":  0.150,
+        "step_end":         15_000_000,  # Extended: profit exploration with ramped penalties
+        "lambda_daily_dd":  None,        # Ramped dynamically in callback (0.05 → 0.15)
+        "lambda_total_dd":  None,        # Ramped dynamically in callback (0.08 → 0.15)
         "lambda_target":    1.00,        # Strong pull toward 10% target
         "learning_rate":    5e-5,
         "ent_coef":         0.005,       # Lower entropy — exploit learned policy
         "clip_range":       0.1,
     },
+}
+
+# Phase 3 ramp configuration: penalties start low and increase linearly
+# so the agent explores profit-making strategies before full discipline locks in.
+PHASE3_RAMP = {
+    "start_step":    5_000_000,
+    "end_step":      15_000_000,
+    "lambda_daily_dd_start": 0.050,
+    "lambda_daily_dd_end":   0.150,
+    "lambda_total_dd_start": 0.080,
+    "lambda_total_dd_end":   0.150,
 }
 
 
@@ -191,9 +204,13 @@ def make_env(df: pd.DataFrame, phase: int = 1,
             random_start    = True,  # ALWAYS random start, even for eval, to sample full val set
             use_calendar    = False,  # Historical backtesting: calendar uses datetime.now(), not bar time
         )
-        env.lambda_daily_dd = phase_cfg["lambda_daily_dd"]
-        env.lambda_total_dd = phase_cfg["lambda_total_dd"]
-        env.lambda_target   = phase_cfg["lambda_target"]
+        if phase == 3:
+            env.lambda_daily_dd = PHASE3_RAMP["lambda_daily_dd_start"]
+            env.lambda_total_dd = PHASE3_RAMP["lambda_total_dd_start"]
+        else:
+            env.lambda_daily_dd = phase_cfg["lambda_daily_dd"]
+            env.lambda_total_dd = phase_cfg["lambda_total_dd"]
+        env.lambda_target = phase_cfg["lambda_target"]
         env = Monitor(env, filename=str(LOGS_DIR / f"monitor_{seed}_{RUN_ID}"))
         return env
     return _init
@@ -232,9 +249,12 @@ class CurriculumCallback(BaseCallback):
         """
         phase_cfg = CURRICULUM[phase]
         try:
-            self.training_env.set_attr("lambda_daily_dd", phase_cfg["lambda_daily_dd"])
-            self.training_env.set_attr("lambda_total_dd", phase_cfg["lambda_total_dd"])
-            self.training_env.set_attr("lambda_target",   phase_cfg["lambda_target"])
+            # Phase 3 DD penalties are ramped dynamically via _on_step
+            if phase_cfg["lambda_daily_dd"] is not None:
+                self.training_env.set_attr("lambda_daily_dd", phase_cfg["lambda_daily_dd"])
+            if phase_cfg["lambda_total_dd"] is not None:
+                self.training_env.set_attr("lambda_total_dd", phase_cfg["lambda_total_dd"])
+            self.training_env.set_attr("lambda_target", phase_cfg["lambda_target"])
         except Exception:
             pass
         # SB3 hyperparams must be callables — wrap raw floats
@@ -253,6 +273,31 @@ class CurriculumCallback(BaseCallback):
         for info in self.locals.get("infos", []):
             if "episode" in info:
                 self._episode_rewards.append(float(info["episode"]["r"]))
+
+        # ── Phase 3: ramp penalties linearly ──────────────────────────────
+        if self.phase == 3:
+            s = PHASE3_RAMP["start_step"]
+            e = PHASE3_RAMP["end_step"]
+            t = self.num_timesteps
+            if t <= s:
+                frac = 0.0
+            elif t >= e:
+                frac = 1.0
+            else:
+                frac = (t - s) / (e - s)
+            daily = PHASE3_RAMP["lambda_daily_dd_start"] + frac * (
+                PHASE3_RAMP["lambda_daily_dd_end"] - PHASE3_RAMP["lambda_daily_dd_start"])
+            total = PHASE3_RAMP["lambda_total_dd_start"] + frac * (
+                PHASE3_RAMP["lambda_total_dd_end"] - PHASE3_RAMP["lambda_total_dd_start"])
+            try:
+                self.training_env.set_attr("lambda_daily_dd", daily)
+                self.training_env.set_attr("lambda_total_dd", total)
+                # Log ramp progress every 1M steps
+                if t % 1_000_000 < 10_000:
+                    print(f"  📈 Phase 3 ramp @ step {t:,}: "
+                          f"lambda_daily_dd={daily:.4f}  lambda_total_dd={total:.4f}")
+            except Exception:
+                pass
 
         # ── Check step-threshold advance ───────────────────────────────────
         if self.phase < 3:

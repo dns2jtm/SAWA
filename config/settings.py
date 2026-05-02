@@ -54,7 +54,7 @@ DATA = {
     "features_dir": BASE_DIR / "data" / "features",
     "models_dir":   BASE_DIR / "models" / "saved",
     # NOTE: actual train/val/test splits are computed dynamically in
-    # models/train.py load_data() as 80/10/10 by bar count, not by date.
+    # models/train.py load_data() as 95/2.5/2.5 by bar count, not by date.
     # These date strings are reference-only and are not used by the pipeline.
     "train_start":  "2004-01-01",
     "train_end":    "2023-12-31",
@@ -91,7 +91,7 @@ RL = {
     "device": "auto",
 
     "algorithm":       "PPO",
-    "total_timesteps": 10_000_000,
+    "total_timesteps": 15_000_000,
     "n_envs":          _n_envs,
     "obs_dim":         77,
     "learning_rate":   3e-4,
