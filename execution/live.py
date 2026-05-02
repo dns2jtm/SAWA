@@ -866,6 +866,20 @@ class LiveTrader:
         self.model = PPO.load(model_path, device="cpu")
         log.info("Model loaded")
 
+        # Load regime specialists (saved by train.py) for ensemble prediction
+        self.specialists = []
+        for i in range(3):
+            sp_path = MODELS_DIR / "best" / f"specialist_{i}.zip"
+            if sp_path.exists():
+                self.specialists.append(PPO.load(sp_path, device="cpu"))
+                log.info(f"  Loaded specialist {i} ({sp_path.name})")
+            else:
+                log.warning(f"Specialist {i} not found at {sp_path}; falling back to single model")
+                self.specialists = None
+                break
+        if self.specialists and len(self.specialists) == 3:
+            log.info(f"✅ Loaded {len(self.specialists)} regime specialists for live routing")
+
         # Initialise components
         self.bar_feeder = BarFeeder()
         self.guard      = FTMOGuard(account_size=CFG["account_size"])
@@ -1038,8 +1052,15 @@ class LiveTrader:
         current_regime = int(np.argmax(regime_probs))
         log.debug(f"Current regime: {current_regime} (probs={regime_probs.round(3)})")
 
-        # 6. Model inference (TODO: override with specialist[current_regime].predict() once loaded)
-        action, _ = self.model.predict(obs, deterministic=True)
+        # Override with specialist if loaded (ensemble improves regime-specific performance)
+        if getattr(self, 'specialists', None) and len(self.specialists) == 3:
+            specialist = self.specialists[current_regime]
+            action, _ = specialist.predict(obs, deterministic=True)
+            log.debug(f"  → Using specialist {current_regime} for prediction")
+        else:
+            action, _ = self.model.predict(obs, deterministic=True)
+
+        # 6. Model inference complete
 
         # 7. Execute
         result = await self.executor.execute(

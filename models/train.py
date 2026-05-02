@@ -773,6 +773,12 @@ def train(phase_start: int   = 1,
         specialists.append(specialist)
     model = specialists[1]  # default to RANGE for compatibility with old code
 
+    # Save specialists for live use (small addition for regime ensemble)
+    for i, sp in enumerate(specialists):
+        sp_path = BEST_DIR / f"specialist_{i}.zip"
+        sp.save(sp_path)
+        print(f"  Saved specialist {i} → {sp_path.name}")
+
     # ── Callbacks ─────────────────────────────────────────────────────────────
     checkpoint_cb = CheckpointCallback(
         save_freq      = 100_000,
