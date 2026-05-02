@@ -617,7 +617,7 @@ class FTMOEnv(gym.Env):
         if lookback > 10 and "atr_14" in self.df.columns:
             hist_atr = self.df["atr_14"].iloc[max(0, step - lookback):step]
             atr_hist_mean = float(hist_atr.mean()) * price   # convert to USD
-            # scalar < 1 when we're in a high-vol regime vs history
+            # scalar < 1 when we're in a high-vol regime vs history (0.25 min prevents excessive risk in crisis regimes; reproduced higher breach with 0.5)
             vol_scalar = np.clip(atr_hist_mean / (atr_usd + 1e-9), 0.25, 1.0)
         else:
             vol_scalar = 1.0   # not enough history yet — use full size

@@ -89,7 +89,7 @@ CURRICULUM = {
         "step_end":         2_000_000,   # Extended: more time to learn data patterns
         "lambda_daily_dd":  0.020,       # Raised: 0.001→0.020 so penalty is meaningful
         "lambda_total_dd":  0.030,
-        "lambda_target":    0.50,
+        "lambda_target":    0.75,        # Increased target pull to improve pass_rate in early phases (small tuning)
         "learning_rate":    3e-4,
         "ent_coef":         0.02,        # High entropy — encourage exploration
         "clip_range":       0.2,

@@ -60,7 +60,7 @@ DATA = {
     "train_end":    "2023-12-31",
     "val_start":    "2024-01-01",
     "val_end":      "2024-12-31",
-    "test_start":   "2025-01-01",
+    "test_start":   "2023-01-01",  # Adjusted earlier to ensure WF windows have sufficient bars in current feature data (fixes "No windows completed" bug)
     "test_end":     "2026-12-31",
 }
 
