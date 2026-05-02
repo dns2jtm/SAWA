@@ -20,7 +20,7 @@ export default function Login() {
   };
 
   return (
-    <main className="min-h-screen bg-[#0a0e17] flex flex-col items-center justify-center p-6 text-[#f0f4f8] bg-[radial-gradient(circle_at_50%_0%,rgba(0,255,136,0.05)_0%,transparent_50%)] relative">
+    <main className="min-h-screen bg-[#242424] flex flex-col items-center justify-center p-6 text-[#f0f4f8] bg-[radial-gradient(circle_at_50%_0%,rgba(0,255,136,0.05)_0%,transparent_50%)] relative">
       <Link href="/" className="absolute top-8 left-8 text-slate-400 font-medium hover:text-white transition-colors">
         ← Back to Home
       </Link>

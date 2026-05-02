@@ -3,7 +3,7 @@ import { Layers, Rocket, Shield, Activity } from "lucide-react";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[#0a0e17] text-[#f0f4f8] overflow-hidden selection:bg-cyan-500/30 font-sans">
+    <main className="min-h-screen bg-[#242424] text-[#f0f4f8] overflow-hidden selection:bg-cyan-500/30 font-sans">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Navigation */}

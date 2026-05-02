@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --bg-color: #0a0e17;
-  --panel-bg: rgba(20, 25, 35, 0.6);
+  --bg-color: #242424;
+  --panel-bg: rgba(36, 36, 36, 0.6);
   --accent-cyan: #00e1ff;
   --accent-green: #00ff88;
   --text-primary: #f0f4f8;
@@ -18,7 +18,7 @@ body {
 }
 
 .glass-panel {
-  background: linear-gradient(145deg, rgba(20, 25, 35, 0.7), rgba(15, 18, 25, 0.5));
+  background: linear-gradient(145deg, rgba(40, 40, 40, 0.7), rgba(30, 30, 30, 0.5));
   border: 1px solid var(--glass-border);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   border-left: 1px solid rgba(255, 255, 255, 0.05);
