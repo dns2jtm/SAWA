@@ -30,7 +30,7 @@ import numpy as np
 import pandas as pd
 import gymnasium as gym
 from gymnasium import spaces
-from typing import Tuple
+from typing import Tuple, List, Optional
 
 from config.prop_firms import get_config, ACTIVE_FIRM
 from config.instruments import INSTRUMENTS, ACTIVE_INSTRUMENT
@@ -153,6 +153,9 @@ class FTMOEnv(gym.Env):
         
         self.verbose   = verbose
         self.training  = training
+        self.specialists = None  # List of 3 PPO models, one per regime (set via set_specialists())
+        self.regime_probs = None
+        self.current_regime = 1  # default RANGING
 
         # Account sizing
         self.initial_balance = initial_balance or float(self.cfg["account_size"])
@@ -268,6 +271,13 @@ class FTMOEnv(gym.Env):
         info = self._get_info()
         return obs, info
 
+    def set_specialists(self, specialists: List):
+        """Set the 3 specialist PPO models (one per regime: 0=TREND, 1=RANGE, 2=VOL)."""
+        if len(specialists) != 3:
+            raise ValueError("Must provide exactly 3 specialist models")
+        self.specialists = specialists
+        print(f"  📊 Loaded {len(specialists)} regime specialists")
+
     # ── Step ──────────────────────────────────────────────────────────────────
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
@@ -283,6 +293,19 @@ class FTMOEnv(gym.Env):
         price   = float(row["close"])
         dt      = pd.to_datetime(row.get("datetime", row.name))
         hour    = dt.hour if hasattr(dt, "hour") else 0
+
+        # ── Regime Routing ─────────────────────────────────────────────────────
+        # Extract regime probabilities from observation (indices 61-64)
+        obs = self._get_obs()
+        regime_start = 61
+        regime_probs = obs[regime_start:regime_start+3]
+        self.regime_probs = regime_probs
+        self.current_regime = int(np.argmax(regime_probs))
+
+        # If we have specialists, override the action with the appropriate specialist
+        if self.specialists is not None and len(self.specialists) == 3:
+            specialist = self.specialists[self.current_regime]
+            action, _ = specialist.predict(obs, deterministic=True)
 
         # ── Day boundary reset ─────────────────────────────────────────────
         current_date = dt.date() if hasattr(dt, "date") else None
@@ -703,6 +726,7 @@ class FTMOEnv(gym.Env):
             "lot_size":          self._trade_lots,
             "direction":         self._trade_direction,
             "bars_held":         self._bars_held,
+            "current_regime":    self.current_regime,
         }
 
     def render(self, mode: str = "human"):
@@ -714,5 +738,7 @@ class FTMOEnv(gym.Env):
             f"Total PnL £{info['total_pnl']:>+9,.2f} | "
             f"Pos: {info['position']:>+5.2f} | "
             f"Days: {info['days_traded']:2d} | "
+            f"Regime: {info['current_regime']} | "
             f"Firm: {info['firm']}"
         )
+

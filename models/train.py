@@ -513,8 +513,8 @@ class FTMOMetricsCallback(BaseCallback):
 # ════════════════════════════════════════════════════════════════════════════════
 
 def build_model(env, phase: int = 1,
-                resume_path: Optional[Path] = None) -> "PPO":
-    """Build or resume a PPO model."""
+                resume_path: Optional[Path] = None, regime_id: int = None) -> "PPO":
+    """Build or resume a PPO model. If regime_id is provided, name it for ensemble."""
     phase_cfg = CURRICULUM[phase]
 
     if resume_path and resume_path.exists():
@@ -528,6 +528,37 @@ def build_model(env, phase: int = 1,
         model.ent_coef      = phase_cfg["ent_coef"]
         model.clip_range    = cr if callable(cr) else (lambda v: lambda _: v)(cr)
         return model
+
+    policy_kwargs = dict(
+        net_arch        = dict(pi=RL["net_arch"], vf=RL["net_arch"]),
+        activation_fn   = __import__("torch.nn", fromlist=["Tanh"]).Tanh,
+        ortho_init      = True,
+    )
+
+    model = PPO(
+        policy          = "MlpPolicy",
+        env             = env,
+        learning_rate   = phase_cfg["learning_rate"],
+        n_steps         = RL["n_steps"],
+        batch_size      = RL["batch_size"],
+        n_epochs        = RL["n_epochs"],
+        gamma           = RL["gamma"],
+        gae_lambda      = RL["gae_lambda"],
+        clip_range      = phase_cfg["clip_range"],
+        ent_coef        = phase_cfg["ent_coef"],
+        vf_coef         = RL["vf_coef"],
+        max_grad_norm   = RL["max_grad_norm"],
+        policy_kwargs   = policy_kwargs,
+        tensorboard_log = str(LOGS_DIR / "tb"),
+        device          = RL["device"],
+        verbose         = 1,
+    )
+
+    regime_name = ["TREND", "RANGE", "VOL"][regime_id] if regime_id is not None else ""
+    print(f"  PPO model built — Phase {phase}: {phase_cfg['name']} {regime_name}")
+    print(f"  Network: {RL['net_arch']}×2  |  LR: {phase_cfg['learning_rate']}  "
+          f"|  Entropy: {phase_cfg['ent_coef']}  |  Device: {RL['device']}")
+    return model
 
     policy_kwargs = dict(
         net_arch        = dict(pi=RL["net_arch"], vf=RL["net_arch"]),
@@ -726,8 +757,21 @@ def train(phase_start: int   = 1,
             resume_path = ckpts[-1]
             print(f"  Resuming from latest checkpoint: {resume_path.name}")
 
-    # ── Build model ───────────────────────────────────────────────────────────
-    model = build_model(train_env, phase=phase_start, resume_path=resume_path)
+    # ── Build 3 regime specialists (TREND, RANGE, VOL) ───────────────────────
+    specialists = []
+    for regime_id in range(3):
+        print(f"\n  Training specialist {regime_id} (regime {['TREND', 'RANGE', 'VOL'][regime_id]})")
+        specialist_env = make_vec_env(
+            make_env(df_train, phase=phase_start, training=True, seed=42 + regime_id),
+            n_envs    = n_envs,
+            seed      = 42 + regime_id,
+            vec_env_cls = SubprocVecEnv if n_envs > 1 else None,
+        )
+        specialist_env = VecNormalize(specialist_env, norm_obs=False, norm_reward=False,
+                                      clip_obs=10.0, gamma=RL["gamma"])
+        specialist = build_model(specialist_env, phase=phase_start, resume_path=resume_path, regime_id=regime_id)
+        specialists.append(specialist)
+    model = specialists[1]  # default to RANGE for compatibility with old code
 
     # ── Callbacks ─────────────────────────────────────────────────────────────
     checkpoint_cb = CheckpointCallback(

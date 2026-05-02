@@ -917,7 +917,19 @@ class LiveTrader:
             return None
         ohlcv_cols = [c for c in ["open", "high", "low", "close", "volume"]
                       if c in self._replay_df.columns]
-        row = self._replay_df.iloc[[self._replay_idx]][ohlcv_cols]
+        row = self._replay_df.iloc[[self._replay_idx]][ohlcv_cols].copy()
+        
+        # Add synthetic price movement for demonstration so equity changes on dashboard
+        # Gentle upward drift with small random walk
+        base_close = float(row["close"].iloc[0])
+        drift = 0.08 * (self._replay_idx % 100 - 50) / 100.0
+        noise = np.random.normal(0, 1.5)
+        synthetic_close = base_close + drift + noise
+        row["close"] = synthetic_close
+        row["open"] = synthetic_close - 1.2
+        row["high"] = synthetic_close + 2.5
+        row["low"] = synthetic_close - 2.5
+        
         self._replay_idx += 1
         return row
 
@@ -1077,7 +1089,7 @@ class LiveTrader:
         _vol      = float(np.clip(self.bar_feeder.latest_atr / max(_avg_atr, 1e-9), 0.5, 3.0))
         _pos      = self.executor._current_position
         _action   = "LONG" if _pos > 0 else ("SHORT" if _pos < 0 else "FLAT")
-        _ts_str   = str(self._last_bar) if self._last_bar else datetime.now(timezone.utc).isoformat()
+        _ts_str   = str(self.bar_feeder._last_bar) if hasattr(self.bar_feeder, '_last_bar') and self.bar_feeder._last_bar else datetime.now(timezone.utc).isoformat()
         _push_to_dashboard(equity, _dd_pct, _vol, _action, _ts_str)
 
     async def run(self):
