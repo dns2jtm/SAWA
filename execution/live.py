@@ -1031,7 +1031,14 @@ class LiveTrader:
         obs = self._build_live_obs(static_obs, equity, balance,
                                     guard_status, cal_blocked)
 
-        # 6. Model inference
+        # ── Regime Routing (mirrors FTMOEnv for consistency with specialists) ─────
+        # Regime probs are at indices 61:64 in the 77-dim obs (after 12 dyn feats)
+        regime_start = 61
+        regime_probs = obs[regime_start:regime_start+3]
+        current_regime = int(np.argmax(regime_probs))
+        log.debug(f"Current regime: {current_regime} (probs={regime_probs.round(3)})")
+
+        # 6. Model inference (TODO: override with specialist[current_regime].predict() once loaded)
         action, _ = self.model.predict(obs, deterministic=True)
 
         # 7. Execute
